@@ -19,7 +19,7 @@ provider that can run in CI.
 | T10 | CLI + deploy templates | `init`, `add`, Dockerfile, compose, Procfile, app.json, netlify.toml, husky | `mlabs init` on a fresh `create-next-app` gives a deployable app on all four targets |
 | T11 | Clerk | Driver mapped onto `tk_users` | Same E2E as T3 passes with Clerk |
 | T12 | Multi-tenant platform | Platform API, custom domains + verification, encrypted tenant secrets, PostgreSQL RLS generation, tenant export/import | A tenant created through the API is live on its subdomain; RLS blocks a deliberately unscoped query |
-| T14 | Adopt in Fera | Replace `fera-nextjs/src/server/{storage,db,auth}` and `env.ts` with the toolkit | Fera's tests pass; net code removed |
+| T13 | Adopt in Fera | Replace `fera-nextjs/src/server/{storage,db,auth}` and `env.ts` with the toolkit | Fera's tests pass; net code removed |
 
 Order rationale: Better Auth comes before Clerk because hospital clients will mostly want their data on their
 own server, and Clerk is already proven in Fera, so it is mostly glue.
