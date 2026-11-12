@@ -1,0 +1,162 @@
+import type { Kit } from "./db/kit";
+
+/**
+ * Tables the toolkit itself relies on. Spread them into the app's `defineTables` factory:
+ *   defineTables((t) => ({ ...toolkitTables(t), patients: … }))
+ * Users are global identities; what a user may do in a tenant is the app's membership table.
+ */
+export function toolkitTables(t: Kit) {
+  const tenants = t.table(
+    "tk_tenants",
+    {
+      id: t.id(),
+      slug: t.text("slug", { length: 63 }).notNull(),
+      name: t.text("name").notNull(),
+      edition: t.text("edition", { length: 40 }).notNull(),
+      /** "+module,-module" on top of the edition preset. */
+      features: t.text("features").notNull().default(""),
+      status: t.text("status", { length: 20 }).notNull().default("active"),
+      plan: t.text("plan", { length: 40 }),
+      limits: t.json<Record<string, number>>("limits"),
+      createdAt: t.createdAt(),
+      updatedAt: t.updatedAt(),
+    },
+    (table) => [t.uniqueIndex("tk_tenants_slug").on(table.slug)],
+  );
+
+  const tenantDomains = t.table(
+    "tk_tenant_domains",
+    {
+      id: t.id(),
+      tenantId: t.ref("tenant_id").notNull(),
+      host: t.text("host").notNull(),
+      verifiedAt: t.timestamp("verified_at"),
+      createdAt: t.createdAt(),
+    },
+    (table) => [t.uniqueIndex("tk_tenant_domains_host").on(table.host)],
+  );
+
+  // Better Auth models (user, session, account, verification), mapped to tk_ tables.
+  const users = t.table(
+    "tk_users",
+    {
+      id: t.id(),
+      name: t.text("name").notNull(),
+      email: t.text("email").notNull(),
+      emailVerified: t.bool("email_verified").notNull().default(false),
+      image: t.longText("image"),
+      createdAt: t.createdAt(),
+      updatedAt: t.updatedAt(),
+    },
+    (table) => [t.uniqueIndex("tk_users_email").on(table.email)],
+  );
+
+  const sessions = t.table(
+    "tk_sessions",
+    {
+      id: t.id(),
+      userId: t.ref("user_id").notNull(),
+      token: t.text("token").notNull(),
+      expiresAt: t.timestamp("expires_at").notNull(),
+      ipAddress: t.text("ip_address"),
+      userAgent: t.longText("user_agent"),
+      createdAt: t.createdAt(),
+      updatedAt: t.updatedAt(),
+    },
+    (table) => [
+      t.uniqueIndex("tk_sessions_token").on(table.token),
+      t.index("tk_sessions_user").on(table.userId),
+    ],
+  );
+
+  const accounts = t.table(
+    "tk_accounts",
+    {
+      id: t.id(),
+      userId: t.ref("user_id").notNull(),
+      accountId: t.text("account_id").notNull(),
+      providerId: t.text("provider_id").notNull(),
+      accessToken: t.longText("access_token"),
+      refreshToken: t.longText("refresh_token"),
+      idToken: t.longText("id_token"),
+      accessTokenExpiresAt: t.timestamp("access_token_expires_at"),
+      refreshTokenExpiresAt: t.timestamp("refresh_token_expires_at"),
+      scope: t.longText("scope"),
+      password: t.longText("password"),
+      createdAt: t.createdAt(),
+      updatedAt: t.updatedAt(),
+    },
+    (table) => [t.index("tk_accounts_user").on(table.userId)],
+  );
+
+  const verifications = t.table("tk_verifications", {
+    id: t.id(),
+    identifier: t.text("identifier").notNull(),
+    value: t.longText("value").notNull(),
+    expiresAt: t.timestamp("expires_at").notNull(),
+    createdAt: t.createdAt(),
+    updatedAt: t.updatedAt(),
+  });
+
+  const settings = t.table(
+    "tk_settings",
+    {
+      id: t.id(),
+      /** A tenant id, or "platform" for platform-wide defaults and locks. */
+      tenantId: t.ref("tenant_id").notNull(),
+      /** "" for tenant-wide, otherwise a branch code. */
+      branch: t.text("branch", { length: 40 }).notNull().default(""),
+      key: t.text("key", { length: 120 }).notNull(),
+      value: t.json<unknown>("value"),
+      locked: t.bool("locked").notNull().default(false),
+      updatedBy: t.ref("updated_by"),
+      updatedAt: t.updatedAt(),
+    },
+    (table) => [
+      t.uniqueIndex("tk_settings_key").on(table.tenantId, table.branch, table.key),
+    ],
+  );
+
+  const outbox = t.table(
+    "tk_outbox",
+    {
+      id: t.id(),
+      tenantId: t.ref("tenant_id"),
+      channel: t.text("channel", { length: 20 }).notNull(),
+      to: t.text("to").notNull(),
+      subject: t.text("subject"),
+      body: t.longText("body").notNull(),
+      createdAt: t.createdAt(),
+    },
+    (table) => [t.index("tk_outbox_tenant").on(table.tenantId, table.createdAt)],
+  );
+
+  const paymentEvents = t.table(
+    "tk_payment_events",
+    {
+      id: t.id(),
+      provider: t.text("provider", { length: 40 }).notNull(),
+      eventId: t.text("event_id").notNull(),
+      type: t.text("type").notNull(),
+      payload: t.json<unknown>("payload"),
+      createdAt: t.createdAt(),
+    },
+    (table) => [
+      t.uniqueIndex("tk_payment_events_event").on(table.provider, table.eventId),
+    ],
+  );
+
+  return {
+    tkTenants: tenants,
+    tkTenantDomains: tenantDomains,
+    tkUsers: users,
+    tkSessions: sessions,
+    tkAccounts: accounts,
+    tkVerifications: verifications,
+    tkSettings: settings,
+    tkOutbox: outbox,
+    tkPaymentEvents: paymentEvents,
+  };
+}
+
+export type ToolkitTables = ReturnType<typeof toolkitTables>;
