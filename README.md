@@ -26,6 +26,7 @@ export default defineToolkit({
   storage: [localDisk(), s3(), cloudinary()],
   email: [devMail(), smtp(), resend()],
   captcha: [turnstile()],
+  tenancy: { modes: ["single", "multi"] },  // TENANCY_MODE picks
   payments: [paystack()],
   errors: sentry(),
   demo: { enabled: "env" },                 // DEMO_MODE=true turns it on
@@ -68,5 +69,6 @@ hand. The toolkit makes those pieces one versioned dependency.
 - Not a UI kit. It ships the few components its modules need (captcha widget, upload button, sign-in form for
   Better Auth) unstyled or Tailwind-minimal; app design stays in the app.
 - Not a framework over Next.js. Apps still write normal App Router code, server actions and route handlers.
-- Not multi-tenant infrastructure. Fera verticals deploy one instance per client; the toolkit assumes one
-  database per deployment.
+- Not opinionated about tenancy. Apps run **single-tenant** (one deployment per client, configured by env) or
+  **multi-tenant** (one deployment, many tenants, configured in the database) by setting `TENANCY_MODE`; see
+  the tenancy module.

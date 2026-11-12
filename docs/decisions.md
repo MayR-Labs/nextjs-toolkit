@@ -25,7 +25,9 @@ The exception is when one option is clearly worse (e.g. demo approaches A and C)
 13. **Feature modules with env or signed-licence enablement** for apps sold in editions.
 14. **SMS/WhatsApp is a toolkit module** (Termii, Africa's Talking, Twilio).
 15. **DB-backed background jobs**; external job services can be added as adapters later.
-16. **Built alongside Hospital MS**, with a playground app as the test target. **Biome** for lint/format.
+16. **Tenancy is built in**: `single` (env-configured, one deployment per client) and `multi` (one deployment,
+    settings per tenant in the DB). Shared tables + `tenantDb()` + optional PostgreSQL RLS; no database-per-tenant.
+17. **Built alongside Fera Health**, with a playground app as the test target. **Biome** for lint/format.
 
 ## Open
 
