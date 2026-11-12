@@ -13,7 +13,10 @@ visitors. No real email, SMS, payment or file storage is ever touched.
 | C. Run each write in a transaction and roll back | Action returns real result | Next page load does not show it, same as A. |
 | **D. Per-visitor sandbox database** | Everything works for that visitor, for the length of their visit | Needs a long-running server and some disk. |
 
-**Chosen: D, with B's nightly reset of the template as a safety net.**
+**Both B and D are built; `demo.strategy` chooses.** `sandbox` (D) is the default for public demos;
+`shared-reset` (B, reset every `DEMO_RESET_INTERVAL`, default 1 h) suits a guided sales demo where the presenter
+wants their changes to stay put during a call, or hosts that cannot keep files (Netlify, Vercel). A and C are
+not offered.
 
 ## How the sandbox works
 
@@ -58,7 +61,7 @@ Railway, or Heroku with the sandbox dir on the dyno's ephemeral disk, which is f
 to be thrown away). Netlify/Vercel functions are not suitable for the demo; they are fine for real client
 deployments on Postgres.
 
-## Fallback if D is too heavy at first
+## Build order
 
-Ship B first (shared demo DB + reset every hour + the same demo drivers for side effects) and move to D once the
-first vertical is feature-complete. The demo drivers are the same in both, so nothing is thrown away.
+`shared-reset` is simpler, so it is built first (it needs only the demo drivers and a reset job); `sandbox` follows
+in the same milestone. The demo drivers are shared by both.

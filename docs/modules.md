@@ -7,7 +7,18 @@ Each section: the interface the app sees, the providers, and what to watch for.
 
 ## Auth
 
-Providers: **Clerk**, **Better Auth**, **Internal** (the app owns users and passwords). Plus a `demo` driver.
+Providers: **Better Auth** (self-hosted: the app's own database holds users, passwords and sessions) and
+**Clerk** (hosted). Plus a `demo` driver.
+
+**Why there is no separate hand-written "Internal" provider.** The original idea was an Internal provider where
+the app manages its own passwords and sessions. Better Auth *is* that: an open-source TypeScript library that
+runs inside the app, stores everything in the app's database through its Drizzle adapter (Postgres, MySQL,
+SQLite), and already has email + password, email verification, password reset, rate limiting, 2FA (TOTP and
+backup codes), passkeys, magic links, email OTP, social sign-in, an admin plugin (create users, ban, revoke
+sessions, impersonate) and a JWT plugin. Writing our own would rebuild that, with our own security bugs. So
+"Internal" in the toolkit means the Better Auth driver; nothing leaves the deployment and there is no
+third-party bill. If Better Auth ever becomes a problem, the local users table (below) means a hand-written
+driver can replace it without touching app data.
 
 ```ts
 interface AuthApi {
@@ -22,26 +33,32 @@ interface Session { userId: string; externalId: string; provider: string; expire
 
 **The local users table is always the source of truth for the app.** Whatever the provider, the toolkit keeps a
 `users` row keyed by `(provider, external_id)`; roles, branch membership, staff profiles and audit logs point at
-`users.id`. That is what lets a hospital move from Clerk to Internal (or the reverse) without touching clinical
-data, and it is how Fera already works (`admins` table + Clerk).
+`users.id`. That is what lets a hospital move from Clerk to Better Auth (or the reverse) without touching clinical
+data, and it is how Fera already works (`admins` table + Clerk). With Better Auth, its user model *is* `tk_users`
+(mapped by table name, with our extra columns); with Clerk, a `tk_users` row is created on first sign-in.
 
 | Provider | Who stores passwords | Notes |
 | --- | --- | --- |
-| Clerk | Clerk | Fastest to ship, hosted UI, invitations, MFA. Monthly cost per MAU; data leaves the deployment. Keyless mode locally. |
-| Better Auth | The app's DB | Uses its Drizzle adapter on the same database (pg/mysql/sqlite). Its tables live in the toolkit's schema. Plugins for 2FA, organisations, admin. |
-| Internal | The app's DB | Built by us: email + password, password reset by email, optional TOTP 2FA, invitations, lockout after N failures. |
+| Better Auth | The app's DB | Default. Tables `tk_users`, `tk_sessions`, `tk_accounts`, `tk_verifications` in the app's schema, all three dialects. Email goes through the toolkit mail module, captcha through the captcha module. |
+| Clerk | Clerk | Hosted UI, invitations, MFA out of the box. Cost per monthly user; user data leaves the deployment. Keyless mode locally. |
 
-**Internal auth design**
+**Configurable variants** (all built; set in `toolkit.config.ts`, some overridable by the app's settings at runtime):
 
-- Passwords hashed with `scrypt` from `node:crypto` (no native module, so it builds the same on Docker, Heroku
-  and Netlify). Parameters stored with the hash so they can be raised later.
-- **Database sessions, not JWTs, by default.** An opaque random token in an `httpOnly`, `Secure`, `SameSite=Lax`
-  cookie; only its SHA-256 is stored. Reason: hospitals need "sign this person out everywhere now" and
-  short idle timeouts on shared ward computers, which stateless JWTs cannot do without a deny-list anyway.
-  A `jwt` session strategy can be added later for API clients.
-- Sliding expiry with an absolute cap; per-app idle timeout (Hospital MS: 15–30 min on clinical roles).
-- Login, reset and invitation forms go through captcha and the rate limiter.
-- Invitation-only sign-up is the default (staff systems should not have public registration).
+| Option | Values | Default |
+| --- | --- | --- |
+| `signUp` | `invite-only` · `open` · `open-with-approval` | `invite-only` |
+| `methods` | any of `password`, `magic-link`, `email-otp`, `passkey`, `google` (and other social providers) | `password` |
+| `twoFactor` | `off` · `optional` · `required` · `required-for-roles` | `optional` |
+| `session.strategy` | `database` (revocable, checked every request) · `cookie-cache` (signed cookie checked first, DB re-checked every N minutes) | `database` |
+| `session.idleTimeout` / `absoluteTimeout` | durations, per role | 30 min / 12 h |
+| `lockout` | attempts + cooldown | 5 / 15 min |
+
+`database` is the default because staff systems need "sign this person out everywhere now" and short idle
+timeouts on shared computers. `cookie-cache` exists for apps where speed matters more than instant revocation.
+
+- Sign-in, reset and invitation forms go through captcha and the rate limiter.
+- Unstyled `SignIn`, `ResetPassword`, `AcceptInvite`, `TwoFactor` components ship with the toolkit for the
+  Better Auth driver (Clerk brings its own).
 
 **Permissions are not the auth module's job.** Auth answers "who is this"; the app defines roles and
 permissions. The toolkit provides a small typed helper (`definePermissions({ "patient.read": [...roles] })`)
@@ -66,7 +83,7 @@ dialects that becomes triple maintenance, so the toolkit adds a thin **dialect-n
 
 ```ts
 // src/server/db/tables.ts (in the app) — written once
-import { defineTables } from "@mayrlabs/nextjs-toolkit/db/schema";
+import { defineTables } from "@mlabs/nextjs-toolkit/db/schema";
 
 export const tables = defineTables((t) => ({
   patients: t.table("patients", {
@@ -105,13 +122,21 @@ Migrations: drizzle-kit, one config and one migrations folder per dialect (`driz
 for the current `DATABASE_URL`. Seeding is a toolkit runner (`mlabs db:seed [--reset] [--profile demo]`) over
 seed modules the app writes.
 
-Toolkit-owned tables (prefixed `tk_`): `tk_users`, `tk_sessions`, `tk_auth_tokens` (reset/invite), `tk_files`,
-`tk_rate_limits`, `tk_payment_events` (webhook idempotency), `tk_mail_outbox` (dev/demo capture). Better Auth's
-tables when that provider is installed. The app's schema imports them so drizzle-kit sees one schema.
+Toolkit-owned tables (prefixed `tk_`): `tk_users`, `tk_sessions`, `tk_accounts`, `tk_verifications` (Better
+Auth's models, mapped to these names), `tk_files`, `tk_rate_limits`, `tk_payment_events` (webhook idempotency),
+`tk_mail_outbox` (dev/demo capture), `tk_settings`, `tk_jobs`. The app's schema imports them so drizzle-kit sees one schema.
 
-**Should MySQL be supported at all?** For Fera clients on shared hosting that only offers MySQL, yes, and that
-is common locally. But it is the dialect with the most gaps; it ships third, behind a flag, once the
-playground passes the full test matrix on it. See [decisions.md](decisions.md).
+**MySQL is supported from the start**, alongside SQLite and Postgres, because shared/cPanel hosting that only
+offers MySQL is common for Nigerian clients. Nothing prevents it; it only costs care in three places, all
+handled inside the toolkit so app code never sees them:
+
+- No `RETURNING` → app-generated IDs + `insertReturning()` shim (above).
+- Different upsert syntax (`ON DUPLICATE KEY UPDATE` vs `ON CONFLICT`) → `db.upsert()` helper.
+- Stricter index limits (long `text` columns cannot be indexed) → `t.text()` takes a `length`, and indexed
+  text columns become `varchar(n)` on MySQL automatically.
+
+Every PR runs the playground test suite against all three dialects in CI, so a query that works on one and
+breaks on another fails the build.
 
 Demo: per-visitor SQLite sandbox (see demo-mode.md).
 
@@ -176,7 +201,7 @@ Providers: **Cloudflare Turnstile**, **hCaptcha**, `noop` (when the module is om
 
 ```ts
 interface CaptchaApi { verify(token: string, ip?: string): Promise<boolean> }
-// client: <Captcha /> from @mayrlabs/nextjs-toolkit/client — renders the configured provider's widget
+// client: <Captcha /> from @mlabs/nextjs-toolkit/client — renders the configured provider's widget
 ```
 
 Wired into the action wrapper with `.captcha()`. Local dev uses each provider's published always-pass test keys
@@ -224,3 +249,76 @@ Providers: **Sentry**, `console` (default locally).
   code they can quote to support.
 
 Demo: captured with a `demo` tag (useful: it shows what prospects break).
+
+---
+
+## Settings
+
+The mechanism behind "build every variant, let configuration choose". Generalises Fera's settings table and
+console field registry.
+
+```ts
+export const settings = defineSettings({
+  "billing.timing": {
+    schema: z.enum(["prepaid", "postpaid", "by-payer"]),
+    default: "by-payer",
+    scope: "branch",                 // deployment | branch | user
+    label: "When patients pay",
+    help: "Prepaid: pay before each service. Postpaid: settle at the end of the visit or at discharge.",
+    lockedBy: "env",                 // optional: an env var can pin it so the admin UI shows it read-only
+  },
+});
+
+await settings.get("billing.timing", { branchId });   // typed, cached per request
+```
+
+- Three layers, most specific wins: **code default → deployment (`toolkit.config` or env) → database
+  (admin UI, per branch where the scope allows)**. A deployment can pin a value so the hospital cannot change it.
+- The admin settings screen is generated from the registry (grouped, searchable, with help text and an audit
+  entry for every change).
+- Demo: changes land in the visitor's sandbox, so prospects can try every variant.
+
+## Feature modules and licensing
+
+For apps sold in editions (Fera's healthcare products). The app declares its feature modules; a deployment
+enables a subset.
+
+```ts
+export const features = defineFeatures({
+  wards:    { requires: ["patients"], permissions: ["ward.*"], nav: [...] },
+  pharmacy: { requires: ["patients", "inventory"] },
+  ...
+});
+```
+
+- `features.enabled("wards")` is checked in four places by the toolkit, not by hand: the feature's route
+  segment layout (`notFound()`), the action wrapper (`.feature("wards")` rejects), navigation and search
+  (filtered), and permissions (a disabled feature's permissions are never granted to any role).
+- **Where the enabled list comes from** is configurable: `env` (`FEATURES=patients,pharmacy`), or a
+  **signed licence** (`LICENCE_KEY`: edition, features, branch/user limits and expiry, signed with Fera's
+  private key and verified offline with the public key in the app). The licence option matters for
+  client-hosted and on-site installs, where the client can edit env vars.
+- The licence check never blocks clinical reading: an expired licence shows a warning and, after a grace
+  period, makes the app read-only, never locked.
+
+## Live updates
+
+For queues, boards and dashboards. `useLive(key)` on the client, `live.publish(key)` after a mutation.
+
+| Strategy | How | When |
+| --- | --- | --- |
+| `polling` (default) | Client refetches every N seconds | Works on every host, including Netlify/Heroku |
+| `sse` | Server-Sent Events from a route handler, fan-out in process | Single long-running server (Docker, on-site) |
+
+## Background jobs
+
+A DB-backed queue (`tk_jobs`) with `jobs.enqueue(name, payload, { runAt })`, drained by `after()` on requests and
+by a cron route (`/api/toolkit/jobs/tick`) called by the host's scheduler (Netlify scheduled functions, Heroku
+Scheduler, a cron container in compose). Enough for reminders, reorder alerts and nightly reports, with no extra
+infrastructure. An adapter interface leaves room for Inngest/Trigger.dev later.
+
+## SMS / WhatsApp
+
+Providers: **Termii**, **Africa's Talking**, **Twilio**, and `dev` (captured to the outbox like email).
+`sms.send({ to, text, channel: "sms" | "whatsapp" })`. Phone numbers normalised to E.164 with a default
+country (`NG`). Demo: captured, never sent.
