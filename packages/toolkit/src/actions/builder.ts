@@ -24,9 +24,19 @@ type Guard<Ctx> = (ctx: Ctx) => Promise<void> | void;
  * The returned function works with useActionState (prevState, formData) or with a plain object.
  */
 export function createActionClient<Ctx>(options: ActionClientOptions<Ctx>) {
-  return function action(name: string) {
+  return function action(name: string): ActionBuilder<Ctx, unknown> {
     return makeBuilder<Ctx, unknown>(options, name, { guards: [], schema: z.any(), mutation: true });
   };
+}
+
+export type ServerAction<T> = (prevOrInput?: unknown, maybeForm?: unknown) => Promise<ActionResult<T>>;
+
+export interface ActionBuilder<Ctx, I> {
+  input<S extends ZodType>(schema: S): ActionBuilder<Ctx, z.infer<S>>;
+  guard(guard: Guard<Ctx>): ActionBuilder<Ctx, I>;
+  /** Marks a read-only action (allowed in demo mode, no beforeMutation). */
+  readOnly(): ActionBuilder<Ctx, I>;
+  run<T>(handler: (args: { input: I; ctx: Ctx }) => Promise<T>): ServerAction<T>;
 }
 
 interface BuilderState<Ctx> {
@@ -35,7 +45,7 @@ interface BuilderState<Ctx> {
   mutation: boolean;
 }
 
-function makeBuilder<Ctx, I>(options: ActionClientOptions<Ctx>, name: string, state: BuilderState<Ctx>) {
+function makeBuilder<Ctx, I>(options: ActionClientOptions<Ctx>, name: string, state: BuilderState<Ctx>): ActionBuilder<Ctx, I> {
   return {
     input<S extends ZodType>(schema: S) {
       return makeBuilder<Ctx, z.infer<S>>(options, name, { ...state, schema });

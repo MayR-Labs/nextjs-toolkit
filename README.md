@@ -1,6 +1,7 @@
 # @mayrlabs/nextjs-toolkit
 
-> Status: **planning**. Nothing here is built yet. These docs are the spec.
+> Status: **v0.1 built** (not yet published to npm). Used by `Fera/fera-health-nextjs` through a local `file:` link.
+> The docs below are the full design; [docs/status.md](docs/status.md) lists what v0.1 implements.
 
 One package that gives every MLabs Next.js app (personal projects, Fera vertical SaaS, client work) the same
 infrastructure: auth, database, file storage, email, captcha, payments, error tracking, env validation, demo
