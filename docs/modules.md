@@ -272,11 +272,21 @@ export const settings = defineSettings({
 await settings.get("billing.timing", { branchId });   // typed, cached per request
 ```
 
-- Three layers, most specific wins: **code default → deployment (`toolkit.config` or env) → database
-  (admin UI, per branch where the scope allows)**. A deployment can pin a value so the hospital cannot change it.
+- **Env first.** Every setting has an env name derived from its key (`billing.timing` → `SETTING_BILLING_TIMING`,
+  per branch `SETTING_BILLING_TIMING__<BRANCH_CODE>`). Resolution: env → admin UI (only for keys env leaves
+  unset, and only when `SETTINGS_ADMIN_EDITABLE=true`) → code default. This is what lets one build serve
+  every client.
 - The admin settings screen is generated from the registry (grouped, searchable, with help text and an audit
   entry for every change).
 - Demo: changes land in the visitor's sandbox, so prospects can try every variant.
+
+## Branding
+
+`defineBranding()` reads `BRAND_*` and `ORG_*` env (name, short name, tagline, description, logos light/dark,
+square mark, favicon, OG image, primary/accent/sidebar colours, font, contact details, legal name, "powered by")
+with per-app defaults. It feeds: Next metadata, `manifest`, icon and OG image routes, Tailwind theme CSS
+variables (with automatic readable text colours), email templates, and print/PDF headers. `mlabs doctor`
+checks colour contrast and that logo URLs load.
 
 ## Feature modules and licensing
 

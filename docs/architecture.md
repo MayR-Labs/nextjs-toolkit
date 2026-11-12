@@ -112,6 +112,15 @@ export const env = createToolkitEnv(config, {
 });
 ```
 
+**One build, any deployment.** Apps built on the toolkit are deployed many times from the same code with
+different env, so env is read at **runtime**, never baked in:
+
+- The toolkit does not use `NEXT_PUBLIC_*`. Browser-side values (captcha site key, payment public keys, Sentry
+  DSN, brand colours) are resolved on the server and exposed through `<ToolkitPublicConfig />` in the root layout
+  and a `usePublicConfig()` hook.
+- Anything that depends on env (metadata, manifest, icons, branding) renders per request.
+- The Docker image is built once with `SKIP_ENV_VALIDATION=1` and validated at container start.
+
 Rules carried over from `fera-nextjs/src/env.ts`, which already works well:
 
 - `emptyStringAsUndefined: true`, `SKIP_ENV_VALIDATION` escape hatch for Docker builds.
