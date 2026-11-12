@@ -20,6 +20,16 @@ describe("features", () => {
     expect(set.size).toBe(0);
   });
 
+  it("removing a shared dependency terminates and removes every dependant", () => {
+    const chain = {
+      billing: { label: "B" },
+      outpatients: { label: "O", requires: ["billing"] },
+      triage: { label: "T", requires: ["outpatients"] },
+      notes: { label: "N" },
+    };
+    expect([...resolveFeatures(chain, ["triage", "outpatients", "billing", "notes"], "-billing")]).toEqual(["notes"]);
+  });
+
   it("signs and verifies licences", () => {
     const keys = generateLicenceKeys();
     const key = signLicence({ licensee: "St Luke", edition: "clinic", expiresAt: "2020-01-01" }, keys.privateKey);

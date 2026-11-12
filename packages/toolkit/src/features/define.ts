@@ -36,18 +36,22 @@ export function resolveFeatures(
   overrides?: string,
 ): Set<string> {
   const { add, remove } = parseOverrides(overrides);
-  const enabled = new Set([...preset, ...add].filter((f) => f in registry));
-  for (const f of remove) enabled.delete(f);
+  const removed = new Set(remove);
+  const enabled = new Set([...preset, ...add].filter((f) => f in registry && !removed.has(f)));
 
+  // Removed features only grow and are never re-added, so this always terminates.
   let changed = true;
   while (changed) {
     changed = false;
     for (const f of [...enabled]) {
       for (const dep of registry[f]?.requires ?? []) {
-        if (remove.includes(dep)) {
+        if (removed.has(dep)) {
           enabled.delete(f);
+          removed.add(f);
           changed = true;
-        } else if (!enabled.has(dep) && dep in registry) {
+          break;
+        }
+        if (!enabled.has(dep) && dep in registry) {
           enabled.add(dep);
           changed = true;
         }
