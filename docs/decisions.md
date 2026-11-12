@@ -9,9 +9,8 @@ The exception is when one option is clearly worse (e.g. demo approaches A and C)
 
 ## Taken
 
-1. **Scope `@mlabs`.** Package `@mlabs/nextjs-toolkit`, plus `@mlabs/tsconfig` and `@mlabs/biome-config`.
-   No packages are published under `@mlabs` yet; the npm org still has to be created (npm blocked an automated
-   check of whether the name is reserved). Fallback if taken: `@mlabsng`.
+1. **Scope `@mayrlabs`.** Package `@mayrlabs/nextjs-toolkit`, plus `@mayrlabs/tsconfig` and `@mayrlabs/biome-config`.
+   `@mlabs` is already taken on npm, so the scope stays `@mayrlabs` (matches the owner's original choice).
 2. **Source on GitHub at `MayR-Labs/nextjs-toolkit`.**
 3. **One package, subpath exports, optional peer deps** rather than one package per module.
 4. **Providers declared in code, selected by env.**

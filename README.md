@@ -1,4 +1,4 @@
-# @mlabs/nextjs-toolkit
+# @mayrlabs/nextjs-toolkit
 
 > Status: **planning**. Nothing here is built yet. These docs are the spec.
 
@@ -9,15 +9,15 @@ the toolkit owns the code behind them.
 
 ```ts
 // toolkit.config.ts (in the app)
-import { defineToolkit } from "@mlabs/nextjs-toolkit";
-import { clerk } from "@mlabs/nextjs-toolkit/auth/clerk";
-import { betterAuth } from "@mlabs/nextjs-toolkit/auth/better-auth";
-import { postgres, sqlite, mysql } from "@mlabs/nextjs-toolkit/db";
-import { s3, cloudinary, localDisk } from "@mlabs/nextjs-toolkit/storage";
-import { resend, smtp, devMail } from "@mlabs/nextjs-toolkit/email";
-import { turnstile } from "@mlabs/nextjs-toolkit/captcha";
-import { paystack } from "@mlabs/nextjs-toolkit/payments/paystack";
-import { sentry } from "@mlabs/nextjs-toolkit/errors/sentry";
+import { defineToolkit } from "@mayrlabs/nextjs-toolkit";
+import { clerk } from "@mayrlabs/nextjs-toolkit/auth/clerk";
+import { betterAuth } from "@mayrlabs/nextjs-toolkit/auth/better-auth";
+import { postgres, sqlite, mysql } from "@mayrlabs/nextjs-toolkit/db";
+import { s3, cloudinary, localDisk } from "@mayrlabs/nextjs-toolkit/storage";
+import { resend, smtp, devMail } from "@mayrlabs/nextjs-toolkit/email";
+import { turnstile } from "@mayrlabs/nextjs-toolkit/captcha";
+import { paystack } from "@mayrlabs/nextjs-toolkit/payments/paystack";
+import { sentry } from "@mayrlabs/nextjs-toolkit/errors/sentry";
 
 export default defineToolkit({
   app: { name: "Hospital MS", slug: "hospital-ms" },

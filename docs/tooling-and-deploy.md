@@ -6,8 +6,8 @@ The toolkit repo publishes two small config packages and the CLI writes the per-
 
 | Concern | Choice | Shipped as |
 | --- | --- | --- |
-| Lint + format | Biome (already used in Fera, pinned 2.x) | `@mlabs/biome-config`, app's `biome.json` extends it |
-| Types | TypeScript strict, `noUncheckedIndexedAccess` | `@mlabs/tsconfig/nextjs.json` |
+| Lint + format | Biome (already used in Fera, pinned 2.x) | `@mayrlabs/biome-config`, app's `biome.json` extends it |
+| Types | TypeScript strict, `noUncheckedIndexedAccess` | `@mayrlabs/tsconfig/nextjs.json` |
 | Git hooks | Husky + lint-staged | written by `mlabs init` |
 | Unit tests | Vitest | app config; toolkit ships `testing` helpers (in-memory SQLite db, fake adapters) |
 | E2E | Playwright | app config; runs against SQLite + demo seed in CI |
