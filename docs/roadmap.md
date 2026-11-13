@@ -6,7 +6,7 @@ provider that can run in CI.
 
 | # | Milestone | Contents | Done when |
 | --- | --- | --- | --- |
-| T0 | Skeleton | Workspace, package build (tsup, ESM, subpath exports, `.d.ts`), biome/tsconfig packages, playground app, CI with Postgres + MySQL + MinIO + Mailpit service containers, changesets | `pnpm build` publishes a dry-run tarball; playground boots |
+| T0 | Skeleton | Package build (tsup, ESM, subpath exports, `.d.ts`), playground app (own repo), CI with Postgres + MySQL + MinIO + Mailpit service containers, changesets | `pnpm build` publishes a dry-run tarball; playground boots |
 | T1 | Env + config + settings | `defineToolkit`, adapter contract, env composition, `doctor`, `env:example`, settings registry with layered values | Playground fails fast with readable messages for each missing/mismatched key; a setting can be pinned by env and edited per branch |
 | T2 | Database | Neutral schema layer, clients for SQLite, Postgres **and MySQL**, `insertReturning`/`upsert`/`ilike` shims, migrate/seed runners, parity test, `tk_` tables, `testing` in-memory db, **tenancy core** (`tenant_id` columns, host resolution, `tenantDb()`, both modes) | Playground CRUD suite passes on all three dialects in both tenancy modes; `twoTenants()` leak suite passes |
 | T3 | Auth: Better Auth | Driver on `tk_users`, every variant in modules.md (sign-up modes, methods, 2FA policies, both session strategies, timeouts, lockout), `requireUser`, proxy helper, permission helper, unstyled components | E2E: invite → set password → 2FA → sign in → idle timeout → sign out everywhere, on all three dialects |

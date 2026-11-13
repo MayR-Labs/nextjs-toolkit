@@ -2,37 +2,34 @@
 
 ## Repository shape
 
-A pnpm workspace, published as **one** npm package with subpath exports.
+A single package (no workspace), published to npm with subpath exports.
 
 ```
-nextjs-toolkit/
-  packages/
-    toolkit/                 → @mayrlabs/nextjs-toolkit (the published package)
-      src/
-        index.ts             defineToolkit, types
-        env/                 env composition on top of @t3-oss/env-nextjs
-        auth/                contract + better-auth/ clerk/ demo/
-        db/                  dialect-neutral schema helpers, client factory, migrate/seed runners
-        storage/             contract + s3/ cloudinary/ local/ demo/
-        email/               contract + resend/ smtp/ dev/ demo/
-        captcha/             contract + turnstile/ hcaptcha/ noop/
-        payments/            contract + registry; paystack/ (first provider)
-        sms/                 contract + termii/ africastalking/ twilio/ dev/
-        settings/            typed settings registry, admin UI generator
-        features/            feature modules, editions, signed licences
-        live/                polling and SSE live updates
-        jobs/                DB-backed background jobs
-        errors/              contract + sentry/ console/
-        demo/                sandbox manager, guards, banner component
-        actions/             safe server-action wrapper (auth, captcha, rate limit, demo, error capture)
-        cli/                 `mlabs` binary: init, add, doctor
-      templates/             files the CLI writes: Dockerfile, Procfile, netlify.toml, husky hooks…
-    tsconfig/                → @mayrlabs/tsconfig (shared base configs)
-    biome-config/            → @mayrlabs/biome-config
-  apps/
-    playground/              a small Next.js app that uses every module; the CI integration target
+nextjs-webkit/               → @mayrlabs/nextjs-webkit (the repo root is the published package)
+  src/
+    index.ts                 defineToolkit, types
+    env/                     env composition on top of @t3-oss/env-nextjs
+    auth/                    contract + better-auth/ clerk/ demo/
+    db/                      dialect-neutral schema helpers, client factory, migrate/seed runners
+    storage/                 contract + s3/ cloudinary/ local/ demo/
+    email/                   contract + resend/ smtp/ dev/ demo/
+    captcha/                 contract + turnstile/ hcaptcha/ noop/
+    payments/                contract + registry; paystack/ (first provider)
+    sms/                     contract + termii/ africastalking/ twilio/ dev/
+    settings/                typed settings registry, admin UI generator
+    features/                feature modules, editions, signed licences
+    live/                    polling and SSE live updates
+    jobs/                    DB-backed background jobs
+    errors/                  contract + sentry/ console/
+    demo/                    sandbox manager, guards, banner component
+    actions/                 safe server-action wrapper (auth, captcha, rate limit, demo, error capture)
+    cli/                     `mlabs` binary: init, add, doctor
+  templates/                 files the CLI writes: Dockerfile, Procfile, netlify.toml, husky hooks…
   docs/
 ```
+
+The playground app used as the CI integration target lives in its own repo and depends on this package by
+`file:`/`link:` path, so this repo stays a single package.
 
 **Why one package rather than `@mayrlabs/auth`, `@mayrlabs/storage`, …?** The modules share the env layer, the
 action wrapper and demo mode, and they are versioned together in practice. Subpath exports plus optional peer
@@ -65,7 +62,7 @@ The toolkit then exposes server-side singletons the app imports from its own `sr
 // src/server/toolkit.ts
 import "server-only";
 import config from "../../toolkit.config";
-import { createToolkit } from "@mayrlabs/nextjs-toolkit/server";
+import { createToolkit } from "@mayrlabs/nextjs-webkit/server";
 import * as schema from "./db/schema";
 
 export const { env, db, auth, storage, mail, captcha, payments, errors, action } =
@@ -92,7 +89,7 @@ interface Adapter<Name extends string, Api, EnvShape extends ZodRawShape> {
 - `Api` is the module's interface (see [modules.md](modules.md)). The app only ever sees the interface.
 - A third party or the app itself can write an adapter (e.g. a Flutterwave payments adapter) by implementing
   the same shape. Nothing in the toolkit hard-codes the list of providers.
-- Each adapter has a **contract test suite** exported from `@mayrlabs/nextjs-toolkit/testing` that any
+- Each adapter has a **contract test suite** exported from `@mayrlabs/nextjs-webkit/testing` that any
   implementation must pass (upload → confirm → read → remove; send → captured; etc.).
 
 ## Env composition
@@ -102,7 +99,7 @@ and lets the app add its own keys:
 
 ```ts
 // src/env.ts
-import { createToolkitEnv } from "@mayrlabs/nextjs-toolkit/env";
+import { createToolkitEnv } from "@mayrlabs/nextjs-webkit/env";
 import config from "../toolkit.config";
 
 export const env = createToolkitEnv(config, {
@@ -140,7 +137,7 @@ The toolkit also generates `.env.example` from the composed schema (`mlabs env:e
 
 - Everything except captcha widgets, the upload helper and the demo banner is **server-only** and imports
   `server-only`.
-- Client-safe exports live under `@mayrlabs/nextjs-toolkit/client` and never import a provider SDK.
+- Client-safe exports live under `@mayrlabs/nextjs-webkit/client` and never import a provider SDK.
 - Route handlers the toolkit needs (local storage uploads/serving, Better Auth endpoints, payment webhooks,
   Better Auth's catch-all) are exported as handler factories the app mounts in one line:
 

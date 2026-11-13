@@ -9,10 +9,12 @@ The exception is when one option is clearly worse (e.g. demo approaches A and C)
 
 ## Taken
 
-1. **Scope `@mayrlabs`.** Package `@mayrlabs/nextjs-toolkit`, plus `@mayrlabs/tsconfig` and `@mayrlabs/biome-config`.
+1. **Scope `@mayrlabs`.** Package `@mayrlabs/nextjs-webkit`. Shared `@mayrlabs/tsconfig` and
+   `@mayrlabs/biome-config`, if made, live in separate repos.
    `@mlabs` is already taken on npm, so the scope stays `@mayrlabs` (matches the owner's original choice).
-2. **Source on GitHub at `MayR-Labs/nextjs-toolkit`.**
-3. **One package, subpath exports, optional peer deps** rather than one package per module.
+2. **Source on GitHub at `MayR-Labs/nextjs-webkit`.**
+3. **One package, subpath exports, optional peer deps** rather than one package per module. The repo is a single
+   package, not a monorepo.
 4. **Providers declared in code, selected by env.**
 5. **Local `tk_users` table is canonical** for every auth provider.
 6. **Self-hosted auth = Better Auth**, not a hand-written provider. Clerk is the hosted alternative.

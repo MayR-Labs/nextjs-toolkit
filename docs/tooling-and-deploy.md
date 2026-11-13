@@ -2,7 +2,8 @@
 
 ## Shared developer tooling
 
-The toolkit repo publishes two small config packages and the CLI writes the per-repo glue.
+This repo publishes one package. The shared Biome and TypeScript configs, if they become packages, live in their
+own repos; the CLI writes the per-repo glue.
 
 | Concern | Choice | Shipped as |
 | --- | --- | --- |
@@ -44,12 +45,12 @@ Dockerfile enables it via an env flag the config reads.
 | Vercel | none needed; `POSTGRES_URL` picked up | Listed for completeness. |
 | On-prem (hospital LAN) | Docker image + `compose.yaml` + backup script | For hospitals with poor internet: a server in the building, optional sync later. |
 
-CI (GitHub Actions, in each repo): lint → typecheck → unit tests → build → E2E on SQLite. The toolkit repo also runs
+CI (GitHub Actions, in each repo): lint → typecheck → unit tests → build → E2E on SQLite. This repo also runs
 the playground's integration tests against Postgres and MySQL service containers and MinIO, so every dialect and
 the S3 driver are exercised on each change.
 
 ## Releasing the toolkit
 
 - Changesets for versioning; publish to npm (public or private scope, see decisions.md).
-- During co-development with Hospital MS, link it locally (`pnpm add ../../Toolkit/nextjs-toolkit/packages/toolkit`
+- During co-development with Hospital MS, link it locally (`pnpm add ../../Toolkit/nextjs-webkit`
   or a `link:` override) and switch to a version range once 0.1 is published.

@@ -1,15 +1,244 @@
 {
-  "name": "nextjs-toolkit-workspace",
-  "private": true,
+  "name": "@mayrlabs/nextjs-webkit",
+  "version": "0.1.0",
+  "description": "Shared infrastructure for MLabs Next.js apps: env, database, tenancy, auth, settings, branding, storage, email, SMS, captcha, payments, errors, actions and demo mode.",
+  "license": "MIT",
+  "homepage": "https://github.com/MayR-Labs/nextjs-webkit#readme",
+  "bugs": {
+    "url": "https://github.com/MayR-Labs/nextjs-webkit/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MayR-Labs/nextjs-webkit.git"
+  },
   "packageManager": "pnpm@12.18.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./env": {
+      "types": "./dist/types/env/index.d.ts",
+      "import": "./dist/env.js",
+      "default": "./dist/env.js"
+    },
+    "./db": {
+      "types": "./dist/types/db/index.d.ts",
+      "import": "./dist/db.js",
+      "default": "./dist/db.js"
+    },
+    "./db/sqlite": {
+      "types": "./dist/types/db/sqlite.d.ts",
+      "import": "./dist/db/sqlite.js",
+      "default": "./dist/db/sqlite.js"
+    },
+    "./db/postgres": {
+      "types": "./dist/types/db/postgres.d.ts",
+      "import": "./dist/db/postgres.js",
+      "default": "./dist/db/postgres.js"
+    },
+    "./db/mysql": {
+      "types": "./dist/types/db/mysql.d.ts",
+      "import": "./dist/db/mysql.js",
+      "default": "./dist/db/mysql.js"
+    },
+    "./tenancy": {
+      "types": "./dist/types/tenancy/index.d.ts",
+      "import": "./dist/tenancy.js",
+      "default": "./dist/tenancy.js"
+    },
+    "./auth": {
+      "types": "./dist/types/auth/index.d.ts",
+      "import": "./dist/auth.js",
+      "default": "./dist/auth.js"
+    },
+    "./auth/better-auth": {
+      "types": "./dist/types/auth/better-auth.d.ts",
+      "import": "./dist/auth/better-auth.js",
+      "default": "./dist/auth/better-auth.js"
+    },
+    "./settings": {
+      "types": "./dist/types/settings/index.d.ts",
+      "import": "./dist/settings.js",
+      "default": "./dist/settings.js"
+    },
+    "./features": {
+      "types": "./dist/types/features/index.d.ts",
+      "import": "./dist/features.js",
+      "default": "./dist/features.js"
+    },
+    "./branding": {
+      "types": "./dist/types/branding/index.d.ts",
+      "import": "./dist/branding.js",
+      "default": "./dist/branding.js"
+    },
+    "./storage": {
+      "types": "./dist/types/storage/index.d.ts",
+      "import": "./dist/storage.js",
+      "default": "./dist/storage.js"
+    },
+    "./storage/local": {
+      "types": "./dist/types/storage/local.d.ts",
+      "import": "./dist/storage/local.js",
+      "default": "./dist/storage/local.js"
+    },
+    "./storage/s3": {
+      "types": "./dist/types/storage/s3.d.ts",
+      "import": "./dist/storage/s3.js",
+      "default": "./dist/storage/s3.js"
+    },
+    "./storage/cloudinary": {
+      "types": "./dist/types/storage/cloudinary.d.ts",
+      "import": "./dist/storage/cloudinary.js",
+      "default": "./dist/storage/cloudinary.js"
+    },
+    "./email": {
+      "types": "./dist/types/email/index.d.ts",
+      "import": "./dist/email.js",
+      "default": "./dist/email.js"
+    },
+    "./email/smtp": {
+      "types": "./dist/types/email/smtp.d.ts",
+      "import": "./dist/email/smtp.js",
+      "default": "./dist/email/smtp.js"
+    },
+    "./sms": {
+      "types": "./dist/types/sms/index.d.ts",
+      "import": "./dist/sms.js",
+      "default": "./dist/sms.js"
+    },
+    "./captcha": {
+      "types": "./dist/types/captcha/index.d.ts",
+      "import": "./dist/captcha.js",
+      "default": "./dist/captcha.js"
+    },
+    "./payments": {
+      "types": "./dist/types/payments/index.d.ts",
+      "import": "./dist/payments.js",
+      "default": "./dist/payments.js"
+    },
+    "./payments/paystack": {
+      "types": "./dist/types/payments/paystack.d.ts",
+      "import": "./dist/payments/paystack.js",
+      "default": "./dist/payments/paystack.js"
+    },
+    "./errors": {
+      "types": "./dist/types/errors/index.d.ts",
+      "import": "./dist/errors.js",
+      "default": "./dist/errors.js"
+    },
+    "./errors/sentry": {
+      "types": "./dist/types/errors/sentry.d.ts",
+      "import": "./dist/errors/sentry.js",
+      "default": "./dist/errors/sentry.js"
+    },
+    "./actions": {
+      "types": "./dist/types/actions/index.d.ts",
+      "import": "./dist/actions.js",
+      "default": "./dist/actions.js"
+    },
+    "./demo": {
+      "types": "./dist/types/demo/index.d.ts",
+      "import": "./dist/demo.js",
+      "default": "./dist/demo.js"
+    },
+    "./testing": {
+      "types": "./dist/types/testing/index.d.ts",
+      "import": "./dist/testing.js",
+      "default": "./dist/testing.js"
+    },
+    "./client": {
+      "types": "./dist/types/client/index.d.ts",
+      "import": "./dist/client.js",
+      "default": "./dist/client.js"
+    }
+  },
   "scripts": {
-    "build": "pnpm -r build",
-    "test": "pnpm -r test",
-    "typecheck": "pnpm -r typecheck",
+    "build": "tsup && tsc -p tsconfig.build.json",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
     "lint": "biome check",
-    "format": "biome check --write"
+    "format": "biome check --write",
+    "prepublishOnly": "pnpm build && pnpm test"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-s3": "^3",
+    "@aws-sdk/s3-request-presigner": "^3",
+    "@libsql/client": ">=0.15",
+    "@sentry/nextjs": ">=9",
+    "@t3-oss/env-nextjs": ">=0.13",
+    "better-auth": ">=1.3",
+    "drizzle-orm": ">=0.44",
+    "mysql2": "^3",
+    "next": ">=16",
+    "nodemailer": ">=6",
+    "postgres": "^3",
+    "react": ">=19",
+    "zod": ">=4",
+    "drizzle-kit": ">=0.31"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-s3": {
+      "optional": true
+    },
+    "@aws-sdk/s3-request-presigner": {
+      "optional": true
+    },
+    "@libsql/client": {
+      "optional": true
+    },
+    "@sentry/nextjs": {
+      "optional": true
+    },
+    "better-auth": {
+      "optional": true
+    },
+    "mysql2": {
+      "optional": true
+    },
+    "nodemailer": {
+      "optional": true
+    },
+    "postgres": {
+      "optional": true
+    },
+    "drizzle-kit": {
+      "optional": true
+    }
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.2"
+    "@biomejs/biome": "2.4.2",
+    "@aws-sdk/client-s3": "^3.1167.0",
+    "@aws-sdk/s3-request-presigner": "^3.1167.0",
+    "@libsql/client": "^0.18.0",
+    "@sentry/nextjs": ">=9",
+    "@t3-oss/env-nextjs": "^0.13.11",
+    "@types/node": "^22.20.5",
+    "@types/nodemailer": "^8.0.2",
+    "@types/react": "^19.3.0",
+    "better-auth": "^1.7.21",
+    "drizzle-kit": "^0.31.11",
+    "drizzle-orm": "^0.45.4",
+    "mysql2": "^3.24.6",
+    "next": "16.4.6",
+    "nodemailer": "^10.5.0",
+    "postgres": "^3.4.9",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "tsup": "^9.0.0",
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.0",
+    "zod": "^4.6.7"
   }
 }

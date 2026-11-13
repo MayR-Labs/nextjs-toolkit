@@ -1,10 +1,10 @@
 # v0.1 status
 
-## Implemented (`packages/toolkit/src`)
+## Implemented (`src/`)
 
 | Entry | What it provides |
 | --- | --- |
-| `@mayrlabs/nextjs-toolkit` | `toolkitTables(t)`: tenants, domains, Better Auth tables, settings, outbox, payment events |
+| `@mayrlabs/nextjs-webkit` | `toolkitTables(t)`: tenants, domains, Better Auth tables, settings, outbox, payment events |
 | `/env` | zod helpers for `@t3-oss/env-nextjs`: required-in-production, lists, booleans, cross-field rules, platform URL |
 | `/db`, `/db/sqlite`, `/db/postgres`, `/db/mysql` | Dialect-neutral column kit, `defineTables`, `createDatabase` with shipped drivers, migrators, UUIDv7 ids, `ilike`, `paginate` |
 | `/tenancy` | Host matching (platform / subdomain / custom domain), `scopedDb` (tenant-filtered reads, updates, deletes and stamped inserts) |
@@ -23,7 +23,7 @@
 | `/testing` | In-memory SQLite from a schema (drizzle-kit API), tenant-leak assertion |
 | `/client` | Public-config provider and captcha widget (`"use client"`) |
 
-40 unit tests (`pnpm --dir packages/toolkit test`). Types are emitted with `tsc` into `dist/types`.
+40 unit tests (`pnpm test`). Types are emitted with `tsc` into `dist/types`.
 
 ## Not yet
 
@@ -34,7 +34,6 @@ browser uploads, `@mayrlabs/tsconfig` and `@mayrlabs/biome-config`.
 ## Publishing
 
 ```bash
-cd packages/toolkit
 pnpm build && pnpm test
 npm publish --access public   # or private, see decisions.md D1
 ```

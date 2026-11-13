@@ -83,7 +83,7 @@ dialects that becomes triple maintenance, so the toolkit adds a thin **dialect-n
 
 ```ts
 // src/server/db/tables.ts (in the app) — written once
-import { defineTables } from "@mayrlabs/nextjs-toolkit/db/schema";
+import { defineTables } from "@mayrlabs/nextjs-webkit/db/schema";
 
 export const tables = defineTables((t) => ({
   patients: t.table("patients", {
@@ -201,7 +201,7 @@ Providers: **Cloudflare Turnstile**, **hCaptcha**, `noop` (when the module is om
 
 ```ts
 interface CaptchaApi { verify(token: string, ip?: string): Promise<boolean> }
-// client: <Captcha /> from @mayrlabs/nextjs-toolkit/client — renders the configured provider's widget
+// client: <Captcha /> from @mayrlabs/nextjs-webkit/client — renders the configured provider's widget
 ```
 
 Wired into the action wrapper with `.captcha()`. Local dev uses each provider's published always-pass test keys

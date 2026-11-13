@@ -1,4 +1,4 @@
-# @mayrlabs/nextjs-toolkit
+# @mayrlabs/nextjs-webkit
 
 > Status: **v0.1 built** (not yet published to npm). Used by `Fera/fera-health-nextjs` through a local `file:` link.
 > The docs below are the full design; [docs/status.md](docs/status.md) lists what v0.1 implements.
@@ -10,15 +10,15 @@ the toolkit owns the code behind them.
 
 ```ts
 // toolkit.config.ts (in the app)
-import { defineToolkit } from "@mayrlabs/nextjs-toolkit";
-import { clerk } from "@mayrlabs/nextjs-toolkit/auth/clerk";
-import { betterAuth } from "@mayrlabs/nextjs-toolkit/auth/better-auth";
-import { postgres, sqlite, mysql } from "@mayrlabs/nextjs-toolkit/db";
-import { s3, cloudinary, localDisk } from "@mayrlabs/nextjs-toolkit/storage";
-import { resend, smtp, devMail } from "@mayrlabs/nextjs-toolkit/email";
-import { turnstile } from "@mayrlabs/nextjs-toolkit/captcha";
-import { paystack } from "@mayrlabs/nextjs-toolkit/payments/paystack";
-import { sentry } from "@mayrlabs/nextjs-toolkit/errors/sentry";
+import { defineToolkit } from "@mayrlabs/nextjs-webkit";
+import { clerk } from "@mayrlabs/nextjs-webkit/auth/clerk";
+import { betterAuth } from "@mayrlabs/nextjs-webkit/auth/better-auth";
+import { postgres, sqlite, mysql } from "@mayrlabs/nextjs-webkit/db";
+import { s3, cloudinary, localDisk } from "@mayrlabs/nextjs-webkit/storage";
+import { resend, smtp, devMail } from "@mayrlabs/nextjs-webkit/email";
+import { turnstile } from "@mayrlabs/nextjs-webkit/captcha";
+import { paystack } from "@mayrlabs/nextjs-webkit/payments/paystack";
+import { sentry } from "@mayrlabs/nextjs-webkit/errors/sentry";
 
 export default defineToolkit({
   app: { name: "Hospital MS", slug: "hospital-ms" },
@@ -32,6 +32,32 @@ export default defineToolkit({
   errors: sentry(),
   demo: { enabled: "env" },                 // DEMO_MODE=true turns it on
 });
+```
+
+## Install and use (v0.1)
+
+```bash
+pnpm add @mayrlabs/nextjs-webkit
+```
+
+Every provider SDK is an optional peer dependency behind its own subpath export, so install only the ones you use.
+
+```ts
+import { defineTables } from "@mayrlabs/nextjs-webkit/db";
+import { toolkitTables } from "@mayrlabs/nextjs-webkit";
+
+export const schemaFor = defineTables((t) => ({
+  ...toolkitTables(t),
+  patients: t.table("patients", { id: t.id(), tenantId: t.ref("tenant_id").notNull(), name: t.text("name").notNull() }),
+}));
+```
+
+## Development
+
+```bash
+pnpm install
+pnpm typecheck && pnpm test && pnpm lint
+pnpm build        # dist/ (tsup) + dist/types (tsc)
 ```
 
 ## Why

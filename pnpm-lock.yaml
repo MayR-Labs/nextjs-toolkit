@@ -166,18 +166,15 @@ importers:
 
   .:
     devDependencies:
-      '@biomejs/biome':
-        specifier: 2.4.2
-        version: 2.4.2
-
-  packages/toolkit:
-    devDependencies:
       '@aws-sdk/client-s3':
         specifier: ^3.1167.0
         version: 3.1167.0
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.1167.0
         version: 3.1167.0
+      '@biomejs/biome':
+        specifier: 2.4.2
+        version: 2.4.2
       '@libsql/client':
         specifier: ^0.18.0
         version: 0.18.0
