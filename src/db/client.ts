@@ -6,7 +6,7 @@ export interface CreateDatabaseOptions<S extends Record<string, unknown>> {
   url: string;
   authToken?: string;
   poolMax?: number;
-  /** The drivers this app ships (import from @mayrlabs/nextjs-webkit/db/<dialect>). */
+  /** The drivers this app ships (import from @mlabshq/nextjs-webkit/db/<dialect>). */
   drivers: DatabaseDriver[];
   schemaFor: (dialect: Dialect) => S;
 }

@@ -1,7 +1,19 @@
 {
-  "name": "@mayrlabs/nextjs-webkit",
+  "name": "@mlabshq/nextjs-webkit",
   "version": "0.1.0",
-  "description": "Shared infrastructure for MLabs Next.js apps: env, database, tenancy, auth, settings, branding, storage, email, SMS, captcha, payments, errors, actions and demo mode.",
+  "description": "Server-side building blocks for Next.js apps: env, Drizzle on SQLite/PostgreSQL/MySQL, tenancy, auth, settings, editions and licences, branding, storage, email, SMS, captcha, payments, errors, server actions and demo mode.",
+  "keywords": [
+    "nextjs",
+    "drizzle",
+    "multi-tenant",
+    "better-auth",
+    "sqlite",
+    "postgres",
+    "mysql",
+    "storage",
+    "paystack",
+    "server-actions"
+  ],
   "license": "MIT",
   "homepage": "https://github.com/MayR-Labs/nextjs-webkit#readme",
   "bugs": {
@@ -16,7 +28,9 @@
   "sideEffects": false,
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "exports": {
     ".": {
@@ -162,12 +176,13 @@
   },
   "scripts": {
     "build": "tsup && tsc -p tsconfig.build.json",
+    "prepare": "pnpm build",
     "dev": "tsup --watch",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "biome check",
     "format": "biome check --write",
-    "prepublishOnly": "pnpm build && pnpm test"
+    "prepublishOnly": "pnpm test"
   },
   "engines": {
     "node": ">=22"

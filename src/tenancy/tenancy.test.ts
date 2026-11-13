@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { defineTables } from "../db/define";
+import { newId } from "../db/ids";
 import { expectOnlyTenant, memoryDatabase } from "../testing";
 import { matchHost } from "./host";
 import { scopedDb } from "./scoped";
@@ -45,5 +46,22 @@ describe("scopedDb", () => {
     await b.delete(tables.notes, eq(tables.notes.title, "a-only"));
     expect(await a.count(tables.notes)).toBe(2);
     expect(() => expectOnlyTenant([{ tenantId: "B" }], "A")).toThrow(/leak/);
+  });
+
+  it("accepts explicit ids on insert and rejects tenantId", async () => {
+    const tables = schemaFor("sqlite");
+    const a = scopedDb(await memoryDatabase(tables), "A");
+    const id = newId();
+    await a.insert(tables.notes, { id, title: "with id" });
+    expect((await a.findFirst(tables.notes, eq(tables.notes.id, id)))?.title).toBe("with id");
+
+    // Type-level only: tenantId is stamped by scopedDb, and ids cannot be changed.
+    const typeChecks = () => {
+      // @ts-expect-error tenantId is not accepted
+      a.insert(tables.notes, { title: "x", tenantId: "B" });
+      // @ts-expect-error id is not updatable
+      a.update(tables.notes, { id: "other" }, undefined);
+    };
+    expect(typeChecks).toBeTypeOf("function");
   });
 });

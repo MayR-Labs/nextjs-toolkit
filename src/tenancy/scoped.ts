@@ -12,6 +12,9 @@ import type { Database } from "../db/driver";
 
 type TenantTable = Table & { tenantId: Column };
 type Where = SQL | undefined;
+/** Like Omit, but resolves for generic drizzle models (Omit loses their keys inside a generic). */
+type Without<M, K extends PropertyKey> = { [P in keyof M as P extends K ? never : P]: M[P] };
+type InsertValues<T extends Table> = Without<InferInsertModel<T>, "tenantId">;
 
 /**
  * A tenant-bound view of the database. Every read, update and delete is filtered by `tenant_id`, and
@@ -68,7 +71,7 @@ export function scopedDb(db: Database, tenantId: string) {
 
     async insert<T extends TenantTable>(
       table: T,
-      values: Omit<InferInsertModel<T>, "tenantId"> | Array<Omit<InferInsertModel<T>, "tenantId">>,
+      values: InsertValues<T> | InsertValues<T>[],
     ): Promise<void> {
       const rows = (Array.isArray(values) ? values : [values]).map((v) => ({
         ...v,
@@ -81,7 +84,7 @@ export function scopedDb(db: Database, tenantId: string) {
 
     async update<T extends TenantTable>(
       table: T,
-      set: Partial<Omit<InferInsertModel<T>, "tenantId" | "id">>,
+      set: Partial<Without<InferInsertModel<T>, "tenantId" | "id">>,
       where: Where,
     ): Promise<void> {
       // biome-ignore lint/suspicious/noExplicitAny: dialect-neutral builder
