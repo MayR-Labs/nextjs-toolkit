@@ -13,7 +13,9 @@ import type { Database } from "../db/driver";
 type TenantTable = Table & { tenantId: Column };
 type Where = SQL | undefined;
 /** Like Omit, but resolves for generic drizzle models (Omit loses their keys inside a generic). */
-type Without<M, K extends PropertyKey> = { [P in keyof M as P extends K ? never : P]: M[P] };
+type Without<M, K extends PropertyKey> = {
+  [P in keyof M as P extends K ? never : P]: M[P];
+};
 type InsertValues<T extends Table> = Without<InferInsertModel<T>, "tenantId">;
 
 /**
@@ -42,9 +44,13 @@ export function scopedDb(db: Database, tenantId: string) {
       } = {},
     ): Promise<InferSelectModel<T>[]> {
       // biome-ignore lint/suspicious/noExplicitAny: dialect-neutral builder
-      let query: any = db.select().from(table as any).where(own(table, options.where));
+      const from = table as any;
+      // biome-ignore lint/suspicious/noExplicitAny: dialect-neutral builder
+      let query: any = db.select().from(from).where(own(table, options.where));
       if (options.orderBy) {
-        const order = Array.isArray(options.orderBy) ? options.orderBy : [options.orderBy];
+        const order = Array.isArray(options.orderBy)
+          ? options.orderBy
+          : [options.orderBy];
         query = query.orderBy(...order);
       }
       if (options.limit !== undefined) query = query.limit(options.limit);
@@ -60,7 +66,10 @@ export function scopedDb(db: Database, tenantId: string) {
       return rows[0];
     },
 
-    async count<T extends TenantTable>(table: T, where?: Where): Promise<number> {
+    async count<T extends TenantTable>(
+      table: T,
+      where?: Where,
+    ): Promise<number> {
       const rows = await db
         .select({ n: count() })
         // biome-ignore lint/suspicious/noExplicitAny: dialect-neutral builder
@@ -88,7 +97,10 @@ export function scopedDb(db: Database, tenantId: string) {
       where: Where,
     ): Promise<void> {
       // biome-ignore lint/suspicious/noExplicitAny: dialect-neutral builder
-      await db.update(table as any).set(set as any).where(own(table, where));
+      const target = table as any;
+      // biome-ignore lint/suspicious/noExplicitAny: dialect-neutral builder
+      const values = set as any;
+      await db.update(target).set(values).where(own(table, where));
     },
 
     async delete<T extends TenantTable>(table: T, where: Where): Promise<void> {

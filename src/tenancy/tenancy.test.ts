@@ -16,12 +16,23 @@ const schemaFor = defineTables((t) => ({
 }));
 
 describe("host matching", () => {
-  const options = { rootDomain: "fera.health", platformHost: "admin.fera.health" };
+  const options = {
+    rootDomain: "fera.health",
+    platformHost: "admin.fera.health",
+  };
   it("classifies hosts", () => {
-    expect(matchHost("admin.fera.health", options)).toEqual({ kind: "platform" });
-    expect(matchHost("stluke.fera.health:3000", options)).toEqual({ kind: "subdomain", slug: "stluke" });
+    expect(matchHost("admin.fera.health", options)).toEqual({
+      kind: "platform",
+    });
+    expect(matchHost("stluke.fera.health:3000", options)).toEqual({
+      kind: "subdomain",
+      slug: "stluke",
+    });
     expect(matchHost("www.fera.health", options)).toEqual({ kind: "none" });
-    expect(matchHost("hms.stluke.org", options)).toEqual({ kind: "custom", host: "hms.stluke.org" });
+    expect(matchHost("hms.stluke.org", options)).toEqual({
+      kind: "custom",
+      host: "hms.stluke.org",
+    });
     expect(matchHost("", options)).toEqual({ kind: "none" });
   });
 });
@@ -40,8 +51,14 @@ describe("scopedDb", () => {
     expectOnlyTenant(rows, "A");
     expect(await b.count(tables.notes)).toBe(1);
 
-    await b.update(tables.notes, { title: "changed" }, eq(tables.notes.title, "same"));
-    expect((await a.findFirst(tables.notes, eq(tables.notes.title, "same")))?.title).toBe("same");
+    await b.update(
+      tables.notes,
+      { title: "changed" },
+      eq(tables.notes.title, "same"),
+    );
+    expect(
+      (await a.findFirst(tables.notes, eq(tables.notes.title, "same")))?.title,
+    ).toBe("same");
 
     await b.delete(tables.notes, eq(tables.notes.title, "a-only"));
     expect(await a.count(tables.notes)).toBe(2);
@@ -53,7 +70,9 @@ describe("scopedDb", () => {
     const a = scopedDb(await memoryDatabase(tables), "A");
     const id = newId();
     await a.insert(tables.notes, { id, title: "with id" });
-    expect((await a.findFirst(tables.notes, eq(tables.notes.id, id)))?.title).toBe("with id");
+    expect(
+      (await a.findFirst(tables.notes, eq(tables.notes.id, id)))?.title,
+    ).toBe("with id");
 
     // Type-level only: tenantId is stamped by scopedDb, and ids cannot be changed.
     const typeChecks = () => {

@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import type { MailDriver } from "./index";
+import type { MailDriver, MailProvider } from "./index";
 
 export interface SmtpConfig {
   host: string;
@@ -15,7 +15,9 @@ export function smtpDriver(config: SmtpConfig): MailDriver {
     host: config.host,
     port: config.port,
     secure: config.secure,
-    auth: config.user ? { user: config.user, pass: config.password } : undefined,
+    auth: config.user
+      ? { user: config.user, pass: config.password }
+      : undefined,
   });
   return {
     name: "smtp",
@@ -32,3 +34,16 @@ export function smtpDriver(config: SmtpConfig): MailDriver {
     },
   };
 }
+
+/** The SMTP provider for `createMailer({ providers: [smtp] })`: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_SECURE. */
+export const smtp: MailProvider = {
+  name: "smtp",
+  create: ({ env }) =>
+    smtpDriver({
+      host: env.need("SMTP_HOST", "when EMAIL_DRIVER=smtp"),
+      port: env.int("SMTP_PORT", 587),
+      secure: env.bool("SMTP_SECURE", false),
+      user: env.str("SMTP_USER"),
+      password: env.str("SMTP_PASSWORD"),
+    }),
+};

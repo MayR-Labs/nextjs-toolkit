@@ -1,1 +1,1 @@
-export { type ToolkitTables, toolkitTables } from "./tables";
+export { type WebkitTables, webkitTables } from "./tables";

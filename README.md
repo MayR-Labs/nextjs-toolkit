@@ -1,13 +1,13 @@
 # @mlabshq/nextjs-webkit
 
 Server-side building blocks for Next.js apps: env validation helpers, one Drizzle schema for SQLite,
-PostgreSQL and MySQL, multi-tenancy, Better Auth, permissions, settings, feature editions with signed
-licences, branding, file storage, email, SMS, captcha, payments, error reporting, a server-action builder,
-demo-mode helpers and test utilities.
+PostgreSQL and MySQL, multi-tenancy, auth (Better Auth or Clerk), permissions, settings, feature editions
+with signed licences, branding, file storage, email, SMS, captcha, payments, error reporting, a
+server-action builder, demo-mode helpers and test utilities.
 
-Each module is its own subpath export, and every provider SDK is an optional peer dependency, so an app
-installs and bundles only what it uses. Nothing is configured globally: you create each service in your
-app (usually in `src/server/`) and pass it what it needs.
+Services with several providers pick theirs from configuration: set `EMAIL_DRIVER=resend` or
+`STORAGE_DRIVER=s3` and the same app code uses Resend or S3. Each module is its own subpath export, and
+every provider SDK is an optional peer dependency, so an app installs and bundles only what it uses.
 
 ## Contents
 
@@ -15,12 +15,13 @@ app (usually in `src/server/`) and pass it what it needs.
 - [Installation](#installation)
 - [Entry points](#entry-points)
 - [Conventions](#conventions)
+- [Providers from configuration](#providers-from-configuration)
 - Modules: [Env](#env) · [Database](#database) · [Tenancy](#tenancy) · [Auth](#auth) ·
   [Settings](#settings) · [Features and licences](#features-and-licences) · [Branding](#branding) ·
   [Storage](#storage) · [Email](#email) · [SMS](#sms) · [Captcha](#captcha) · [Payments](#payments) ·
   [Errors](#errors) · [Server actions](#server-actions) · [Demo mode](#demo-mode) · [Testing](#testing) ·
   [Client](#client)
-- [Environment variables the package reads](#environment-variables-the-package-reads)
+- [Environment variables](#environment-variables)
 - [Production checklist](#production-checklist)
 - [Development](#development)
 
@@ -47,6 +48,7 @@ Then add the peer dependencies of the modules you use:
 | `/db/postgres` | `postgres` |
 | `/db/mysql` | `mysql2` |
 | `/auth/better-auth` | `better-auth` |
+| `/auth/clerk` | `@clerk/nextjs` |
 | `/storage/s3` | `@aws-sdk/client-s3 @aws-sdk/s3-request-presigner` |
 | `/email/smtp` | `nodemailer` |
 | `/errors/sentry` | `@sentry/nextjs` |
@@ -57,46 +59,50 @@ Cloudinary, Resend, Termii, Paystack, Turnstile and hCaptcha are called over HTT
 
 ### Installing from GitHub (before an npm release)
 
-```bash
-pnpm add @mlabshq/nextjs-webkit@github:MayR-Labs/nextjs-webkit#main
-```
+Pin a commit, and allow that commit's `prepare` script (it builds `dist/`) in the app's
+`pnpm-workspace.yaml`. pnpm only accepts the exact tarball URL here; the package name alone is not enough.
 
-The package's `prepare` script builds `dist/` during install. pnpm only runs it if you allow it, in the
-app's `pnpm-workspace.yaml`:
+```bash
+pnpm add @mlabshq/nextjs-webkit@github:MayR-Labs/nextjs-webkit#<commit-sha>
+```
 
 ```yaml
 allowBuilds:
-  "@mlabshq/nextjs-webkit": true
+  "@mlabshq/nextjs-webkit@https://codeload.github.com/MayR-Labs/nextjs-webkit/tar.gz/<commit-sha>": true
 ```
 
-`pnpm update @mlabshq/nextjs-webkit` moves the lockfile to the latest commit on `main`. If you run Vitest,
-add `server: { deps: { inline: ["@mlabshq/nextjs-webkit"] } }` to the `test` block so its `next/*` imports
-resolve the same way they do in the app.
+Both must change together whenever you move to a new commit, so script it. Fera Health's
+`scripts/webkit-update.mjs` resolves a branch or tag to a sha, rewrites both, and runs `pnpm install`.
+
+If you run Vitest, add `server: { deps: { inline: ["@mlabshq/nextjs-webkit"] } }` to the `test` block so its
+`next/*` imports resolve the same way they do in the app.
 
 ## Entry points
 
 | Import | Provides |
 | --- | --- |
-| `@mlabshq/nextjs-webkit` | `toolkitTables` (the package's own tables) |
-| `/env` | zod helpers for `@t3-oss/env-nextjs`, `platformUrl`, `firstEnv` |
-| `/db` | `defineTables`, `createDatabase`, `newId`, `randomToken`, `ilike`, `paginate`, `dialectFor` |
+| `@mlabshq/nextjs-webkit` | `webkitTables`, `WebkitTables` (the package's own tables; added to every schema automatically) |
+| `/env` | `createWebkitEnv`, `webkitEnv`, `webkitEnvRules`; zod helpers, `platformUrl`, `firstEnv` |
+| `/db` | `defineTables`, `createDatabase`, `DatabaseConnection`, `newId`, `randomToken`, `ilike`, `paginate`, `dialectFor` |
 | `/db/sqlite`, `/db/postgres`, `/db/mysql` | `sqliteDriver`, `postgresDriver`, `mysqlDriver` |
 | `/tenancy` | `matchHost`, `isValidSlug`, `scopedDb`, `DEFAULT_TENANT_ID`, `PLATFORM_SCOPE` |
-| `/auth` | `definePermissions` |
-| `/auth/better-auth` | `createBetterAuth`, `createUserWithPassword`, `revokeAllSessions` |
+| `/auth` | `createAuth`, `AuthError`, `definePermissions` |
+| `/auth/better-auth` | `betterAuthProvider`, `createBetterAuth`, `betterAuthDriver`, `createUserWithPassword`, `revokeAllSessions` |
+| `/auth/clerk` | `clerkProvider`, `clerkDriver` |
 | `/settings` | `defineSettings`, `resolveSetting`, `parseEnvValue`, `settingEnvName`, `envExample` |
 | `/features` | `defineFeatures`, `resolveFeatures`, `parseOverrides`, `generateLicenceKeys`, `signLicence`, `verifyLicence` |
 | `/branding` | `brandingFromEnv`, `mergeBranding`, `brandCssVariables`, `readableText`, `contrastRatio`, `normaliseHex` |
-| `/storage` | `createStorage`, `checkUpload`, `objectKey` |
-| `/storage/local`, `/storage/s3`, `/storage/cloudinary` | `localStorageDriver` + `serveLocalFile`, `s3StorageDriver`, `cloudinaryStorageDriver` |
-| `/email` | `createMailer`, `devMailDriver`, `resendDriver`, `escapeHtml` |
-| `/email/smtp` | `smtpDriver` |
-| `/sms` | `createSms`, `devSmsDriver`, `termiiDriver`, `toE164` |
+| `/storage` | `createStorage`, `checkUpload`, `objectKey`; providers `local`, `cloudinary` |
+| `/storage/s3` | provider `s3`, `s3StorageDriver` |
+| `/storage/local`, `/storage/cloudinary` | `localStorageDriver`, `serveLocalFile`, `cloudinaryStorageDriver` |
+| `/email` | `createMailer`, `outboxCapture`, `escapeHtml`; providers `devMail`, `resend` |
+| `/email/smtp` | provider `smtp`, `smtpDriver` |
+| `/sms` | `createSms`, `toE164`; providers `devSms`, `termii` |
 | `/captcha` | `createCaptcha`, `TEST_KEYS` |
-| `/payments` | `createPayments`, `demoPaymentProvider` |
+| `/payments` | `createPayments`, `demoPaymentProvider`; provider `paystack` |
 | `/payments/paystack` | `paystackProvider`, `verifyPaystackSignature` |
 | `/errors` | `createErrorReporter`, `consoleDriver`, `scrub`, `DEFAULT_SCRUB` |
-| `/errors/sentry` | `sentryDriver` |
+| `/errors/sentry` | provider `sentry`, `sentryDriver` |
 | `/actions` | `createActionClient`, `ActionError`, `ActionResult`, `formToObject` |
 | `/demo` | `demoGuard`, `daysFromNow`, `seededRandom` |
 | `/testing` | `memoryDatabase`, `expectOnlyTenant` |
@@ -111,13 +117,77 @@ resolve the same way they do in the app.
   avoid `.returning()` (MySQL lacks it) and dialect-specific SQL.
 - **No `NEXT_PUBLIC_*`**: browser values are resolved on the server and passed down with
   `PublicConfigProvider`, so one build can serve any deployment.
-- The package's own tables are prefixed `tk_`.
+- The package's own tables are prefixed `mlwebkit__` and added to your schema automatically.
+
+## Providers from configuration
+
+Database, auth, storage, email, SMS, captcha, payments and error reporting each have one `create*`
+function that reads its configuration and picks the provider itself:
+
+```ts
+import { createMailer } from "@mlabshq/nextjs-webkit/email";
+import { smtp } from "@mlabshq/nextjs-webkit/email/smtp";
+
+export const mailer = createMailer({ env, providers: [smtp] });
+// EMAIL_DRIVER=dev | resend | smtp, plus that provider's own variables
+```
+
+- **Selection** comes from one variable per module (`EMAIL_DRIVER`, `STORAGE_DRIVER`, …; see
+  [Environment variables](#environment-variables)). Passing `driver: "resend"` overrides it, and passing a
+  driver object (`driver: myMailDriver`) skips selection entirely, which is handy in tests.
+- **Built-in providers** need no SDK and are always available. Providers that need an SDK (SMTP, S3, Sentry,
+  Better Auth, Clerk) are imported from their own subpath and listed in `providers`, so apps that do not use
+  them never bundle them. Selecting one that is not registered fails with a message saying what to import.
+- **`env`** is optional. Values in it take precedence over `process.env`; pass your validated
+  `@t3-oss/env-nextjs` object so its defaults apply. Numbers, booleans and lists are accepted as well as
+  strings.
+- **Providers are created on first use.** Creating a service never throws for missing keys, so builds and
+  unrelated pages keep working; the first call fails with the variable to set, e.g.
+  `RESEND_API_KEY is required when EMAIL_DRIVER=resend.`
+- **Demo mode** (`DEMO_MODE=true`, or `demo: true`) switches email and SMS to the dev drivers, storage to local
+  disk and payments to the demo provider, so nothing leaves the server.
+- **Custom providers** are plain objects, `{ name, create({ env }) }`, returning a driver (`MailDriver`,
+  `SmsDriver`, `StorageDriver`, `PaymentProvider`, `ErrorDriver`, `AuthDriver`). Register them in
+  `providers`; a custom provider with a built-in's name replaces it.
 
 ---
 
 ## Env
 
-Helpers for building an [`@t3-oss/env-nextjs`](https://env.t3.gg) schema.
+`createWebkitEnv` is `createEnv` from [`@t3-oss/env-nextjs`](https://env.t3.gg) with every variable the
+webkit reads already declared (with defaults) and validated (with cross-field rules such as "`S3_BUCKET` is
+required with `STORAGE_DRIVER=s3`"). The app declares only its own variables:
+
+```ts
+// src/env.ts
+import { createWebkitEnv, emailList } from "@mlabshq/nextjs-webkit/env";
+import { z } from "zod";
+
+export const env = createWebkitEnv({
+  server: {
+    // The app's own variables
+    EDITION: z.enum(["clinic", "hospital"]).default("hospital"),
+    ADMIN_EMAILS: emailList(),
+    // Override a webkit variable by declaring the same key
+    EMAIL_FROM: z.string().default("My App <no-reply@myapp.test>"),
+  },
+  // Optional cross-field rules of your own, run after the webkit's
+  rules: (v) => (v.EDITION === "hospital" && !v.ADMIN_EMAILS ? [{ path: ["ADMIN_EMAILS"], message: "…" }] : []),
+});
+
+env.STORAGE_DRIVER; // "local" | "s3" | "cloudinary", typed, defaulted
+env.EDITION;        // "clinic" | "hospital"
+```
+
+- Server-only: no `NEXT_PUBLIC_*` variables, so one build can serve any deployment.
+- Empty strings count as unset. Validation is skipped during `next build` and when `SKIP_ENV_VALIDATION`
+  is set.
+- Pass `env` to every `create*` service so they use these validated values and defaults.
+- Calling `createEnv` yourself (for example to add client variables)? Spread `webkitEnv` into `server` and
+  add `webkitEnvRules(values)` issues in `createFinalSchema`.
+
+The full list is in [Environment variables](#environment-variables). The helpers it is built from are
+exported too:
 
 | Helper | Behaviour |
 | --- | --- |
@@ -130,40 +200,6 @@ Helpers for building an [`@t3-oss/env-nextjs`](https://env.t3.gg) schema.
 | `firstEnv(...names)` | The first non-empty env var among `names` |
 | `platformUrl()` | Public URL from `APP_URL`, then Netlify `URL`, Vercel and Heroku variables |
 
-```ts
-// src/env.ts
-import { createEnv } from "@t3-oss/env-nextjs";
-import { z } from "zod";
-import {
-  booleanString, emailList, firstEnv, intString, platformUrl, requiredInProduction, requireWith,
-} from "@mlabshq/nextjs-webkit/env";
-
-export const env = createEnv({
-  server: {
-    NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-    DATABASE_URL: z
-      .string()
-      .default(firstEnv("NETLIFY_DATABASE_URL", "POSTGRES_URL") ?? "file:.data/app.db"),
-    AUTH_SECRET: requiredInProduction(),
-    DEMO_MODE: booleanString(),
-    ADMIN_EMAILS: emailList(),
-    DATABASE_POOL_MAX: intString(10),
-    S3_BUCKET: z.string().optional(),
-    S3_REGION: z.string().optional(),
-  },
-  experimental__runtimeEnv: {}, // server-only variables are read from process.env
-  createFinalSchema: (shape, isServer) =>
-    z.object(shape).superRefine((values, ctx) => {
-      if (!isServer) return;
-      for (const issue of requireWith(values, [["S3_REGION", "S3_BUCKET", "S3 storage"]]))
-        ctx.addIssue({ code: "custom", ...issue });
-    }),
-  skipValidation: !!process.env.SKIP_ENV_VALIDATION,
-});
-
-export const appUrl = () => platformUrl() ?? "http://localhost:3000";
-```
-
 ---
 
 ## Database
@@ -175,7 +211,11 @@ points at. `postgres://` or `postgresql://` selects PostgreSQL, `mysql://` selec
 ### Schema
 
 `defineTables` takes a factory that receives the kit `t` and returns your tables. It returns
-`schemaFor(dialect)`, which builds (and caches) the tables for one dialect.
+`schemaFor(dialect)`, which builds (and caches) the tables for one dialect, **with the webkit's own tables
+added**: `mlwebkit__tenants`, `mlwebkit__tenant_domains`, `mlwebkit__users`, `mlwebkit__sessions`,
+`mlwebkit__accounts`, `mlwebkit__verifications`, `mlwebkit__settings`, `mlwebkit__outbox` and
+`mlwebkit__payment_events` (as `webkitTenants`, `webkitUsers`, … in TypeScript). They are generated and
+migrated with the app's tables; you never declare them.
 
 | Column helper | PostgreSQL | MySQL | SQLite |
 | --- | --- | --- | --- |
@@ -196,11 +236,9 @@ you index or make unique, and `t.longText` for free text.
 
 ```ts
 // src/server/db/schema.ts
-import { toolkitTables } from "@mlabshq/nextjs-webkit";
 import { defineTables, dialectFor } from "@mlabshq/nextjs-webkit/db";
 
 export const schemaFor = defineTables((t) => ({
-  ...toolkitTables(t),
   patients: t.table(
     "patients",
     {
@@ -218,12 +256,10 @@ export const schemaFor = defineTables((t) => ({
 // Read process.env directly so drizzle-kit can load this file on its own.
 export const dialect = dialectFor(process.env.DATABASE_URL);
 export const schema = schemaFor(dialect);
-export const { tkTenants, tkUsers, tkSessions, tkAccounts, tkVerifications, patients } = schema;
+// drizzle-kit reads tables from top-level exports, so export every table (webkit ones included).
+export const { webkitTenants, webkitTenantDomains, webkitUsers, webkitSessions, webkitAccounts,
+  webkitVerifications, webkitSettings, webkitOutbox, webkitPaymentEvents, patients } = schema;
 ```
-
-`toolkitTables(t)` adds the tables other modules rely on: `tk_tenants`, `tk_tenant_domains`, the Better Auth
-tables (`tk_users`, `tk_sessions`, `tk_accounts`, `tk_verifications`), `tk_settings`, `tk_outbox` and
-`tk_payment_events`. Include it even if you only use some of them.
 
 ### Connecting
 
@@ -238,9 +274,7 @@ import { schemaFor, type schema } from "./schema";
 
 const connect = () =>
   createDatabase({
-    url: env.DATABASE_URL,
-    authToken: env.DATABASE_AUTH_TOKEN, // Turso only
-    poolMax: env.DATABASE_POOL_MAX,     // PostgreSQL and MySQL, default 10
+    env,
     drivers: [sqliteDriver, postgresDriver], // only the drivers this app ships
     schemaFor,
   });
@@ -250,12 +284,20 @@ const g = globalThis as unknown as { __db?: ReturnType<typeof connect> };
 const connection = g.__db ?? connect();
 if (env.NODE_ENV !== "production") g.__db = connection;
 
+/** The connection the webkit's services take (`createAuth`, `outboxCapture`). */
+export const database = connection;
 export const { db, dialect, driver } = connection;
 export type Db = Database<typeof schema>;
 ```
 
-`createDatabase` throws if `DATABASE_URL` points at a dialect whose driver you did not pass. For a SQLite
-file, create its folder before connecting (`mkdirSync(dirname(url.slice(5)), { recursive: true })`).
+| Option | Default |
+| --- | --- |
+| `url` | `DATABASE_URL`, then `NETLIFY_DATABASE_URL`, `POSTGRES_URL`, then `file:./.data/app.db` |
+| `authToken` | `DATABASE_AUTH_TOKEN` (Turso only) |
+| `poolMax` | `DATABASE_POOL_MAX`, then 10 (PostgreSQL and MySQL) |
+
+The URL picks the dialect, and `createDatabase` throws if you did not pass that dialect's driver. The SQLite
+driver creates the folder of a `file:` database, so a fresh clone runs without setup.
 
 ### Migrations
 
@@ -304,7 +346,7 @@ const rows = await db.select().from(patients).where(ilike(patients.name, `%${q}%
 ## Tenancy
 
 Apps run **single-tenant** (one deployment per client, every row uses `DEFAULT_TENANT_ID`) or
-**multi-tenant** (one deployment, tenants in `tk_tenants`, resolved from the request host). Tenant-owned
+**multi-tenant** (one deployment, tenants in `mlwebkit__tenants`, resolved from the request host). Tenant-owned
 tables carry a `tenantId` column (`t.ref("tenant_id").notNull()`).
 
 ### Resolving the tenant from the host
@@ -319,7 +361,7 @@ const match = matchHost(request.headers.get("host"), {
 // { kind: "platform" } | { kind: "subdomain", slug } | { kind: "custom", host } | { kind: "none" }
 ```
 
-Look up `slug` in `tk_tenants.slug`, or a custom `host` in `tk_tenant_domains.host` (only once
+Look up `slug` in `mlwebkit__tenants.slug`, or a custom `host` in `mlwebkit__tenant_domains.host` (only once
 `verifiedAt` is set). `isValidSlug(slug)` checks a new tenant's slug: lowercase letters, digits and hyphens,
 up to 63 characters, not `www`, `api`, `admin`, `app` or `platform`.
 
@@ -347,78 +389,128 @@ await db.select().from(patients).innerJoin(visits, eq(visits.patientId, patients
 ```
 
 `DEFAULT_TENANT_ID` is the fixed id of the single tenant in single-tenant mode, so data can later move to a
-multi-tenant deployment. `PLATFORM_SCOPE` (`"platform"`) is the `tk_settings.tenant_id` for platform-wide
+multi-tenant deployment. `PLATFORM_SCOPE` (`"platform"`) is the `mlwebkit__settings.tenant_id` for platform-wide
 defaults and locks.
 
 ---
 
 ## Auth
 
-### Better Auth on your database
+`createAuth` gives the app one auth interface whichever provider `AUTH_DRIVER` selects. User ids are always
+local `mlwebkit__users` ids, so the rest of the app (memberships, audit logs, "created by" columns) does not
+change when the provider does.
 
-`createBetterAuth` configures [Better Auth](https://www.better-auth.com) with email and password (and
-optionally Google) on the `tk_users`, `tk_sessions`, `tk_accounts` and `tk_verifications` tables.
+| `AUTH_DRIVER` | Import | Sign-in | Notes |
+| --- | --- | --- | --- |
+| `better-auth` | `betterAuthProvider` from `/auth/better-auth` | `password`: the app renders its own pages | Users, sessions and passwords in your database |
+| `clerk` | `clerkProvider` from `/auth/clerk` | `hosted`: Clerk's components | Clerk owns passwords and sessions; users are linked to `mlwebkit__users` by email on first sign-in |
 
 ```ts
 // src/server/auth.ts
 import "server-only";
-import { createBetterAuth } from "@mlabshq/nextjs-webkit/auth/better-auth";
-import { escapeHtml } from "@mlabshq/nextjs-webkit/email";
-import { appUrl, env } from "@/env";
-import { db, dialect, tkAccounts, tkSessions, tkUsers, tkVerifications } from "./db";
+import { createAuth } from "@mlabshq/nextjs-webkit/auth";
+import { betterAuthProvider } from "@mlabshq/nextjs-webkit/auth/better-auth";
+import { clerkProvider } from "@mlabshq/nextjs-webkit/auth/clerk";
+import { env } from "@/env";
+import { database } from "./db";
 import { mailer } from "./mail";
 
-export const auth = createBetterAuth({
-  db,
-  dialect,
-  tables: { tkUsers, tkSessions, tkAccounts, tkVerifications },
-  secret: env.AUTH_SECRET!,
-  baseURL: appUrl(),
-  appName: "My App",
-  signUp: "invite-only",                         // "open" | "open-with-approval" | "invite-only"
-  session: { strategy: "database", idleMinutes: 60 },
-  lockout: { attempts: 5, minutes: 15 },
-  google: env.GOOGLE_CLIENT_ID
-    ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET! }
-    : undefined,
-  sendResetPassword: async ({ email, name, url }) => {
-    await mailer.send({
-      to: email,
-      subject: "Set your password",
-      html: `<p>Hello ${escapeHtml(name)},</p><p><a href="${url}">Set my password</a></p>`,
-      text: `Set your password: ${url}`,
-    });
-  },
+export const auth = createAuth({
+  env,
+  database,
+  providers: [
+    betterAuthProvider({ mailer }), // set-password emails use a default template
+    clerkProvider(),
+  ],
 });
 ```
 
 ```ts
-// src/app/api/auth/[...all]/route.ts
-import { toNextJsHandler } from "better-auth/next-js";
+// src/app/api/auth/[...all]/route.ts (Better Auth's endpoints; Clerk needs none and returns 404)
 import { auth } from "@/server/auth";
 
-export const { GET, POST } = toNextJsHandler(auth);
+export const { GET, POST } = auth.handler;
 ```
 
-| Option | Meaning |
-| --- | --- |
-| `signUp` | `"invite-only"` disables public sign-up; create users with `createUserWithPassword`. `"open"` and `"open-with-approval"` allow it (approval is the app's own check) |
-| `session.strategy` | `"database"` checks the session row on every request. `"cookie-cache"` also caches it in a signed cookie for `cookieCacheMinutes` (default 5), which is faster but delays sign-out on other devices by up to that long |
-| `session.idleMinutes` | Sessions slide forward on activity and expire after this long idle (minimum 5) |
-| `lockout` | Rate-limits `/sign-in/email` to `attempts` per `minutes` window |
-| `trustedOrigins` | Extra allowed origins, or an async function of the request (e.g. to trust tenant hosts) |
-| `extend` | Any other Better Auth options (plugins, hooks), merged last. `nextCookies()` is always added |
+Using it (every method reads the current request's headers itself):
+
+```ts
+const session = await auth.getSession();       // { user: { id, email, name }, createdAt? } | null
+await auth.signOut();
+
+// Invitations and seeding work the same with either provider:
+const userId = await auth.createUser({ email, name, password });   // password optional
+await auth.inviteUser({ email, name });                             // link lands on /reset-password or /sign-up
+await auth.inviteUser({ email, name, baseURL: "https://acme.app.test" }); // …on a tenant's own host
+await auth.revokeAllSessions(userId);
+
+// Email and password flows, when auth.signInMode === "password":
+await auth.password.signIn({ email, password });
+await auth.password.requestReset({ email, redirectTo: `${auth.baseURL}/reset-password` });
+await auth.password.reset({ token, password });
+```
+
+Expected failures (wrong password, expired link, a password flow on Clerk) throw `AuthError`, which extends
+`ActionError`, so its message is safe to show and the action builder returns it as a normal error result.
+Sessions older than `AUTH_ABSOLUTE_TIMEOUT_HOURS` count as signed out (for providers that report when a
+session started). `baseURL` defaults to `APP_URL`, then the host platform's URL.
+
+### Better Auth settings
+
+Read from env; pass the option to `betterAuthProvider` to override.
+
+| Variable | Option | Meaning |
+| --- | --- | --- |
+| `AUTH_SECRET` | `secret` | Signs sessions. Required in production |
+| `AUTH_SIGN_UP` [invite-only] | `signUp` | `invite-only` disables public sign-up (use `createUser` / `inviteUser`); `open` and `open-with-approval` allow it |
+| `AUTH_SESSION_STRATEGY` [database] | `session.strategy` | `database` checks the session row every request; `cookie-cache` also caches it in a signed cookie for `AUTH_COOKIE_CACHE_MINUTES` [5], faster but sign-out on other devices lags by up to that long |
+| `AUTH_IDLE_TIMEOUT_MINUTES` [30] | `session.idleMinutes` | Sessions slide forward on activity and expire after this long idle |
+| `AUTH_LOCKOUT_ATTEMPTS` [5], `AUTH_LOCKOUT_MINUTES` [15] | `lockout` | Rate limit on password sign-in |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | `google` | Google sign-in, when both are set (and `AUTH_METHODS` is empty or includes `google`) |
+| `BRAND_NAME` | `appName` | Shown in emails |
+| `TENANCY_MODE=multi` + `TENANCY_*` | `trustedOrigins` | The platform host and every tenant subdomain are trusted origins |
+| | `mailer` | Sends password-reset and invitation emails with a default template |
+| | `sendResetPassword` | Your own email instead of the default template |
+| | `extend` | Any other Better Auth options (plugins, hooks), merged last. `nextCookies()` is always added |
 
 Passwords need at least 8 characters, and resetting a password signs the user out everywhere.
 
-```ts
-import { createUserWithPassword, revokeAllSessions } from "@mlabshq/nextjs-webkit/auth/better-auth";
+### Clerk
 
-const userId = await createUserWithPassword(auth, { email, name, password }); // returns existing id if taken
-await revokeAllSessions(auth, userId);
+`clerkProvider()` needs `@clerk/nextjs` installed, and Clerk reads `CLERK_SECRET_KEY` and
+`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` itself (for development without a Clerk account,
+`npx clerk@latest init` writes temporary keys). The driver loads Clerk's SDK only when it is used, so
+Better Auth deployments and scripts never load it. Add Clerk's own pieces to the app, switched on by
+`AUTH_DRIVER` so the same build supports both providers:
+
+```ts
+// src/proxy.ts
+import { clerkMiddleware } from "@clerk/nextjs/server";
+import { type NextFetchEvent, type NextRequest, NextResponse } from "next/server";
+
+const clerk = clerkMiddleware();
+export default function proxy(request: NextRequest, event: NextFetchEvent) {
+  return process.env.AUTH_DRIVER === "clerk" ? clerk(request, event) : NextResponse.next();
+}
+export const config = { matcher: ["/((?!_next|.*\\..*).*)", "/(api|trpc)(.*)"] };
 ```
 
-Read the session in server code with Better Auth's own API: `await auth.api.getSession({ headers: await headers() })`.
+```tsx
+// app/layout.tsx: inside <body>
+{env.AUTH_DRIVER === "clerk" ? <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up">{children}</ClerkProvider> : children}
+
+// app/sign-in/page.tsx: when auth.signInMode === "hosted"
+<SignIn routing="hash" signUpUrl="/sign-up" forceRedirectUrl={next} />
+
+// app/sign-up/page.tsx: invitations land here
+<SignUp routing="hash" signInUrl="/sign-in" />
+```
+
+On a user's first sign-in the driver links their Clerk account to the `mlwebkit__users` row with the same
+email (creating it if needed), so people invited with `auth.inviteUser` keep the id their memberships use.
+Set sign-up to "Restricted" in the Clerk dashboard so only invited people can join. Clerk sessions do not
+report `createdAt`; set the maximum session lifetime in the Clerk dashboard. `auth.password` methods throw
+`AuthError` with code `unsupported`.
 
 ### Permissions
 
@@ -481,7 +573,7 @@ Each key has an env name: `settingEnvName("billing.timing")` is `SETTING_BILLING
 `SETTING_BILLING_TIMING__IKEJA`. Env values are parsed against the schema as a raw string, then JSON, then a
 comma-separated list.
 
-`resolveSetting` decides the effective value. Load the relevant `tk_settings` rows yourself (platform row,
+`resolveSetting` decides the effective value. Load the relevant `mlwebkit__settings` rows yourself (platform row,
 tenant row, branch row) and pass them in:
 
 ```ts
@@ -613,42 +705,30 @@ Env variables read by `brandingFromEnv`: `BRAND_NAME`, `BRAND_SHORT_NAME`, `BRAN
 One interface over local disk, S3-compatible stores and Cloudinary, with public and private files. Private
 files are only reachable through short-lived signed URLs.
 
-| Driver | Private files | Use for |
-| --- | --- | --- |
-| `localStorageDriver` | yes | local development, demos, on-site servers with a persistent disk |
-| `s3StorageDriver` | yes | AWS S3, Cloudflare R2, DigitalOcean Spaces, MinIO |
-| `cloudinaryStorageDriver` | no | public images (logos, photos) |
+| `STORAGE_DRIVER` | Private files | Import | Use for |
+| --- | --- | --- | --- |
+| `local` (default) | yes | built in | local development, demos, on-site servers with a persistent disk |
+| `s3` | yes | `s3` from `/storage/s3` | AWS S3, Cloudflare R2, DigitalOcean Spaces, MinIO |
+| `cloudinary` | no | built in | public images (logos, photos) |
 
 ```ts
 // src/server/storage.ts
 import "server-only";
-import { createStorage, type StorageDriver } from "@mlabshq/nextjs-webkit/storage";
-import { type LocalStorageConfig, localStorageDriver } from "@mlabshq/nextjs-webkit/storage/local";
-import { s3StorageDriver } from "@mlabshq/nextjs-webkit/storage/s3";
+import { createStorage } from "@mlabshq/nextjs-webkit/storage";
+import { s3 } from "@mlabshq/nextjs-webkit/storage/s3";
 import { env } from "@/env";
 
-export const localConfig: LocalStorageConfig = {
-  dir: ".data/files",
-  baseUrl: "/api/files",     // where serveLocalFile is mounted
-  secret: env.AUTH_SECRET!,  // signs private URLs
-};
-
-const driver: StorageDriver =
-  env.STORAGE_DRIVER === "s3"
-    ? s3StorageDriver({
-        bucket: env.S3_BUCKET!,
-        region: env.S3_REGION!,
-        accessKeyId: env.S3_ACCESS_KEY_ID!,
-        secretAccessKey: env.S3_SECRET_ACCESS_KEY!,
-        endpoint: env.S3_ENDPOINT,     // R2, Spaces, MinIO
-        publicUrl: env.S3_PUBLIC_URL,  // CDN or bucket domain for public files
-      })
-    : localStorageDriver(localConfig);
-
-export const storage = createStorage(driver, { signedUrlSeconds: 10 * 60 });
+export const storage = createStorage({ env, providers: [s3] });
 ```
 
-For Cloudinary: `cloudinaryStorageDriver({ cloudName, apiKey, apiSecret, folder })`.
+| Provider | Variables |
+| --- | --- |
+| all | `STORAGE_SIGNED_URL_MINUTES` (5) |
+| `local` | `STORAGE_LOCAL_DIR` (`./.data/uploads`), `STORAGE_LOCAL_BASE_URL` (`/api/files`), `STORAGE_SECRET` (falls back to `AUTH_SECRET`; required in production) |
+| `s3` | `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, optional `S3_ENDPOINT` (R2, Spaces, MinIO) and `S3_PUBLIC_URL` (CDN or bucket domain) |
+| `cloudinary` | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, optional `CLOUDINARY_FOLDER` |
+
+Options `local`, `signedUrlSeconds` and `demo` override the variables.
 
 Uploading from a server action:
 
@@ -667,24 +747,23 @@ const stored = await storage.put({
 });
 // Save stored.key. stored.publicUrl is set for public files only.
 
-const link = await storage.url(stored.key, "private"); // signed, expires after signedUrlSeconds
+const link = await storage.url(stored.key, "private"); // signed, expires after the signed URL lifetime
 const bytes = await storage.read(stored.key);
 await storage.remove(stored.key);
 ```
 
-`objectKey` builds `<prefix>/<tenant>/<folder>/<id>-<safe-name>`. `createStorage` refuses private files on a
-driver that cannot hold them.
+`objectKey` builds `<prefix>/<tenant>/<folder>/<id>-<safe-name>`. Putting a private file on a store that
+cannot hold one (Cloudinary) throws.
 
-The local driver needs a route that serves its files and checks signatures:
+Local files are served by a route at the local base URL, which checks the signature of private files:
 
 ```ts
 // src/app/api/files/[...key]/route.ts
-import { serveLocalFile } from "@mlabshq/nextjs-webkit/storage/local";
-import { localConfig } from "@/server/storage";
+import { storage } from "@/server/storage";
 
 export async function GET(request: Request, { params }: RouteContext<"/api/files/[...key]">) {
   const { key } = await params;
-  return serveLocalFile(localConfig, key.join("/"), new URL(request.url));
+  return storage.serve(request, key.join("/")); // 404 when the store is not local
 }
 ```
 
@@ -696,29 +775,29 @@ Do not use local storage on hosts with an ephemeral disk (Heroku, Netlify, Verce
 
 ```ts
 // src/server/mail.ts
-import { createMailer, devMailDriver, type MailDriver, resendDriver } from "@mlabshq/nextjs-webkit/email";
-import { smtpDriver } from "@mlabshq/nextjs-webkit/email/smtp";
+import { createMailer, outboxCapture } from "@mlabshq/nextjs-webkit/email";
+import { smtp } from "@mlabshq/nextjs-webkit/email/smtp";
 import { env } from "@/env";
+import { database } from "./db";
 
-const driver: MailDriver =
-  env.MAIL_DRIVER === "resend"
-    ? resendDriver(env.RESEND_API_KEY!)
-    : env.MAIL_DRIVER === "smtp"
-      ? smtpDriver({ host: env.SMTP_HOST!, port: env.SMTP_PORT, secure: env.SMTP_SECURE, user: env.SMTP_USER, password: env.SMTP_PASSWORD })
-      : devMailDriver(async (entry) => {
-          await db.insert(tkOutbox).values({ id: newId(), ...entry }); // optional capture
-        });
-
-export const mailer = createMailer(driver, { from: "My App <no-reply@example.com>", replyTo: "support@example.com" });
+export const mailer = createMailer({
+  env,
+  providers: [smtp],
+  capture: outboxCapture(database), // optional: dev and demo mail lands in mlwebkit__outbox
+});
 
 await mailer.send({ to: "ada@example.com", subject: "Welcome", html: "<p>Hi</p>", text: "Hi" });
 ```
 
-| Driver | Notes |
-| --- | --- |
-| `devMailDriver(capture?)` | Never sends. Logs the message and passes it to `capture` (e.g. to store it in `tk_outbox` and show a dev inbox) |
-| `resendDriver(apiKey)` | Resend HTTP API |
-| `smtpDriver(config)` | Any SMTP server through nodemailer; also a local Mailpit (`localhost:1025`, `secure: false`) |
+| `EMAIL_DRIVER` | Import | Variables |
+| --- | --- | --- |
+| `dev` (default) | built in | none. Never sends: logs the message and passes it to `capture` |
+| `resend` | built in | `RESEND_API_KEY` |
+| `smtp` | `smtp` from `/email/smtp` | `SMTP_HOST`, `SMTP_PORT` (587), `SMTP_SECURE` (false), `SMTP_USER`, `SMTP_PASSWORD` |
+
+`EMAIL_FROM` and `EMAIL_REPLY_TO` are the default sender and reply-to (options `from` and `replyTo` override
+them; `EMAIL_FROM` is required in production for real providers). With `EMAIL_DRIVER=dev` and `SMTP_HOST` set,
+mail goes to that SMTP server instead, which suits a local Mailpit (`SMTP_HOST=localhost`, `SMTP_PORT=1025`).
 
 Escape user input in HTML bodies with `escapeHtml(value)`. Rendering templates (for example with React
 Email) is up to the app; pass the resulting `html` and `text`.
@@ -728,20 +807,22 @@ Email) is up to the app; pass the resulting `html` and `text`.
 ## SMS
 
 ```ts
-import { createSms, devSmsDriver, termiiDriver } from "@mlabshq/nextjs-webkit/sms";
+import { createSms } from "@mlabshq/nextjs-webkit/sms";
 
-export const sms = createSms(
-  env.SMS_DRIVER === "termii" ? termiiDriver(env.TERMII_API_KEY!) : env.SMS_DRIVER === "dev" ? devSmsDriver() : null,
-  { sender: "MyApp", country: "234" },
-);
+export const sms = createSms({ env });
 
 if (sms.enabled) await sms.send({ to: "0803 123 4567", text: "Your code is 123456" });
 await sms.send({ to: "+2348031234567", text: "Hello", channel: "whatsapp" }); // Termii WhatsApp channel
 ```
 
-Passing `null` disables SMS: `send` then returns `null` without sending. Numbers are normalised to E.164
-with `toE164(raw, country)` (a leading `0` becomes the country code), and an invalid number throws.
-`devSmsDriver(capture?)` logs and captures like the dev mail driver.
+| `SMS_DRIVER` | Variables |
+| --- | --- |
+| `off` (default) | none. `send` returns `null` |
+| `dev` | none. Logs and passes the message to `capture` |
+| `termii` | `TERMII_API_KEY` |
+
+`SMS_SENDER_ID` is the sender (option `sender`). Numbers are normalised to E.164 with `toE164(raw, country)`,
+where `SMS_COUNTRY_CODE` (default `234`) replaces a leading `0`; an invalid number throws.
 
 ---
 
@@ -752,22 +833,25 @@ Server-side verification for Cloudflare Turnstile and hCaptcha.
 ```ts
 import { createCaptcha } from "@mlabshq/nextjs-webkit/captcha";
 
-export const captcha = createCaptcha(env.CAPTCHA_PROVIDER, {   // "turnstile" | "hcaptcha" | "off"
-  siteKey: env.CAPTCHA_SITE_KEY,
-  secretKey: env.CAPTCHA_SECRET_KEY,
-});
+export const captcha = createCaptcha({ env });
 
-// In a server action or route handler:
-const token = formData.get(captcha.provider === "turnstile" ? "cf-turnstile-response" : "h-captcha-response");
-if (!(await captcha.verify(token as string, ip))) throw new ActionError("Please complete the captcha.");
+// In a server action:
+if (!(await captcha.verifyForm(formData, ip))) throw new ActionError("Please complete the captcha.");
 ```
 
-Render the widget with `<CaptchaWidget provider={captcha.provider} siteKey={captcha.siteKey} />` from
-[`/client`](#client) inside the form; it posts the token under the field names above.
+| `CAPTCHA_DRIVER` | Variables |
+| --- | --- |
+| `off` (default) | none. Every check passes |
+| `turnstile` | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` |
+| `hcaptcha` | `HCAPTCHA_SITE_KEY`, `HCAPTCHA_SECRET_KEY` |
 
-When a key is missing, the provider's published test keys (`TEST_KEYS`) are used, which always pass. That
-makes local development work with no account, but **set both keys in production**. `"off"` accepts
-everything.
+Render the widget with `<CaptchaWidget provider={captcha.provider} siteKey={captcha.siteKey} />` from
+[`/client`](#client) inside the form. It posts its token in `captcha.tokenField`, which `verifyForm` reads;
+`verify(token, ip)` checks a token you already have.
+
+Missing keys fall back to the provider's published always-pass test keys (`TEST_KEYS`) outside production,
+so local development needs no account. **In production, missing keys make every check fail** (and log why),
+so a misconfigured deployment never accepts bots silently.
 
 ---
 
@@ -777,13 +861,19 @@ A provider interface with Paystack and a demo provider. Several providers can be
 picks one per payment.
 
 ```ts
-import { createPayments, demoPaymentProvider } from "@mlabshq/nextjs-webkit/payments";
-import { paystackProvider } from "@mlabshq/nextjs-webkit/payments/paystack";
+import { createPayments } from "@mlabshq/nextjs-webkit/payments";
 
-export const payments = createPayments(
-  env.DEMO_MODE ? [demoPaymentProvider("/demo/checkout")] : env.PAYSTACK_SECRET_KEY ? [paystackProvider(env.PAYSTACK_SECRET_KEY)] : [],
-);
+export const payments = createPayments({ env });
+// PAYMENTS_PROVIDERS=paystack  (comma-separated; each provider reads its own keys)
 ```
+
+| Provider | Variables |
+| --- | --- |
+| `paystack` | `PAYSTACK_SECRET_KEY` |
+| `demo` | enabled automatically, and alone, in demo mode. Redirects to `demoCheckoutPath` (default `/demo/checkout`) and always succeeds |
+
+`payments.enabled`, `payments.providers` (enabled ids) and `payments.default` (the first one) describe what is
+on; `payments.get(id)` returns a provider and throws for one that is not enabled.
 
 Starting and confirming a payment:
 
@@ -806,7 +896,7 @@ const result = await provider.verify(reference); // { status: "success" | "faile
 Always compare `result.amountMinor` and `result.currency` with what you expected before marking anything
 paid.
 
-Webhooks: verify the signature, then record the event in `tk_payment_events`, whose unique key
+Webhooks: verify the signature, then record the event in `mlwebkit__payment_events`, whose unique key
 (`provider`, `event_id`) makes replays harmless:
 
 ```ts
@@ -820,7 +910,7 @@ export async function POST(request: Request, { params }: RouteContext<"/api/paym
   if (!event) return new Response("Invalid signature", { status: 401 });
 
   try {
-    await db.insert(tkPaymentEvents).values({ id: newId(), provider, eventId: event.id, type: event.type, payload: event.raw });
+    await db.insert(webkitPaymentEvents).values({ id: newId(), provider, eventId: event.id, type: event.type, payload: event.raw });
   } catch {
     return new Response("Already processed", { status: 200 });
   }
@@ -833,9 +923,6 @@ export async function POST(request: Request, { params }: RouteContext<"/api/paym
 Point the Paystack dashboard's webhook URL at `/api/payments/paystack`. Refunds:
 `await provider.refund?.(reference, amountMinor)` (omit the amount for a full refund).
 
-`demoPaymentProvider(checkoutPath)` redirects to your own demo checkout page with `reference` and `callback`
-query parameters, and `verify` always succeeds. Never enable it outside demo mode.
-
 ---
 
 ## Errors
@@ -845,27 +932,34 @@ scrubbed.
 
 ```ts
 import { createErrorReporter } from "@mlabshq/nextjs-webkit/errors";
-import { sentryDriver } from "@mlabshq/nextjs-webkit/errors/sentry";
+import { sentry } from "@mlabshq/nextjs-webkit/errors/sentry";
 
-export const errors = createErrorReporter(env.SENTRY_DSN ? sentryDriver : undefined); // console by default
+export const errors = createErrorReporter({ env, providers: [sentry] });
+// ERRORS_DRIVER=console (default) | sentry (needs SENTRY_DSN)
 
 const ref = errors.capture(error, { userId, tenantId, action: "billing.refund", tags: { branch }, extra: { input } });
 // ref: e.g. "3FA9C21B"
 ```
 
+Reporting never throws: if the selected provider is misconfigured, the reporter logs why once and falls back
+to the console.
+
 Values in `extra` whose key contains a sensitive word (`password`, `token`, `secret`, `authorization`,
 `cookie`, `email`, `phone`, `address`, `dateOfBirth`, clinical note fields…) are replaced with
-`"[scrubbed]"`. Pass your own list as the second argument; `DEFAULT_SCRUB` is exported to extend.
+`"[scrubbed]"`. Pass your own list as `scrub`; `DEFAULT_SCRUB` is exported to extend.
 
-`sentryDriver` only reports; initialise Sentry yourself in `instrumentation.ts`:
+The Sentry provider only reports; initialise Sentry yourself in `instrumentation.ts`:
 
 ```ts
 export async function register() {
-  if (!process.env.SENTRY_DSN) return;
+  if (process.env.ERRORS_DRIVER !== "sentry" || !process.env.SENTRY_DSN) return;
   const Sentry = await import("@sentry/nextjs");
   Sentry.init({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 0.1 });
 }
 ```
+
+Keep Node.js-only startup code (database, seeding) in a separate file imported directly inside
+`if (process.env.NEXT_RUNTIME === "nodejs") { … }` in `register()`, so the Edge build does not bundle it.
 
 ---
 
@@ -937,8 +1031,8 @@ Helpers for public demo deployments.
 
 - `demoGuard({ enabled, strategy, blocked })` returns a function for the action client's `beforeMutation`.
   It throws `ActionError("This is disabled in the demo.")` for action names in `blocked` (exact names or
-  `prefix.*`) while `enabled` is true. Combine it with demo drivers elsewhere: `devMailDriver`,
-  `devSmsDriver`, `demoPaymentProvider` and local storage, so nothing leaves the server.
+  `prefix.*`) while `enabled` is true. With `DEMO_MODE=true`, email, SMS, storage and payments switch to
+  their dev or demo providers on their own, so nothing leaves the server.
 - `daysFromNow(days, hour = 9, minute = 0)` keeps seeded dates relative to today, so a demo rebuilt
   tomorrow still looks current.
 - `seededRandom(seed)` gives deterministic `next()`, `int(min, max)`, `pick(items)` and `chance(p)`, so the
@@ -970,9 +1064,13 @@ const rows = await scopedDb(db, "tenant-a").findMany(schema.patients);
 expectOnlyTenant(rows, "tenant-a"); // throws if any row belongs to another tenant
 ```
 
-`memoryDatabase` needs `@libsql/client` and `drizzle-kit` installed. Providers that call HTTP APIs
-(`resendDriver`, `termiiDriver`, `paystackProvider`, `createCaptcha`, `cloudinaryStorageDriver`) take an
-optional `fetch` as their last argument, so tests can pass a fake.
+`memoryDatabase` needs `@libsql/client` and `drizzle-kit` installed.
+
+To test code that uses services, pass a driver object instead of a provider name
+(`createMailer({ driver: { name: "fake", send } })`) or an `env` object that selects what you want
+(`createSms({ env: { SMS_DRIVER: "dev" }, capture })`). Drivers that call HTTP APIs (`resendDriver`,
+`termiiDriver`, `paystackProvider`, `cloudinaryStorageDriver`) take an optional `fetch` as their last
+argument, and `createCaptcha` takes a `fetcher` option, so tests can pass a fake.
 
 ---
 
@@ -1003,13 +1101,31 @@ Only put values in `PublicConfigProvider` that are safe for every visitor to see
 
 ---
 
-## Environment variables the package reads
+## Environment variables
 
-The package reads very little from `process.env` on its own; everything else is passed in by your app.
+`createWebkitEnv` declares and validates all of these. Each `create*` function reads them from `process.env`,
+with its `env` option layered on top. Defaults are in brackets.
+
+| Module | Selects provider | Provider settings |
+| --- | --- | --- |
+| Database | `DATABASE_URL` scheme [`file:./.data/app.db`], also `NETLIFY_DATABASE_URL`, `POSTGRES_URL` | `DATABASE_AUTH_TOKEN`, `DATABASE_POOL_MAX` [10] |
+| Tenancy | `TENANCY_MODE` [single] | `TENANCY_ROOT_DOMAIN`, `TENANCY_PLATFORM_HOST` (required in multi) |
+| Auth | `AUTH_DRIVER` [better-auth] | `AUTH_SECRET`, `AUTH_SIGN_UP`, `AUTH_METHODS`, `AUTH_SESSION_STRATEGY`, `AUTH_COOKIE_CACHE_MINUTES` [5], `AUTH_IDLE_TIMEOUT_MINUTES` [30], `AUTH_ABSOLUTE_TIMEOUT_HOURS` [12], `AUTH_LOCKOUT_ATTEMPTS` [5], `AUTH_LOCKOUT_MINUTES` [15], `GOOGLE_*`; Clerk: `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` |
+| Storage | `STORAGE_DRIVER` [local] | `STORAGE_SIGNED_URL_MINUTES` [5], `STORAGE_MAX_UPLOAD_MB` [20], `STORAGE_LOCAL_DIR`, `STORAGE_LOCAL_BASE_URL`, `STORAGE_SECRET` / `AUTH_SECRET`, `S3_*`, `CLOUDINARY_*` |
+| Email | `EMAIL_DRIVER` [dev] | `EMAIL_FROM`, `EMAIL_REPLY_TO`, `RESEND_API_KEY`, `SMTP_HOST`, `SMTP_PORT` [587], `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` |
+| SMS | `SMS_DRIVER` [off] | `SMS_SENDER_ID`, `SMS_COUNTRY_CODE` [234], `TERMII_API_KEY` |
+| Captcha | `CAPTCHA_DRIVER` [off] | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `HCAPTCHA_SITE_KEY`, `HCAPTCHA_SECRET_KEY` |
+| Payments | `PAYMENTS_PROVIDERS` [none] | `PAYSTACK_SECRET_KEY` |
+| Errors | `ERRORS_DRIVER` [console] | `SENTRY_DSN` |
+| Demo mode | `DEMO_MODE` [false], `DEMO_STRATEGY` [shared-reset] | switches email, SMS, storage and payments to their dev or demo providers |
+| Branding | | `BRAND_*`, `ORG_*` (see [Branding](#branding)) |
+| General | | `NODE_ENV`, `APP_URL` |
+
+Other variables the package reads:
 
 | Variable | Read by |
 | --- | --- |
-| `NODE_ENV` | `requiredInProduction()` |
+| `NODE_ENV` | `requiredInProduction()`, and production checks (captcha test keys, storage secret, `EMAIL_FROM`) |
 | `TK_DIALECT` | `dialectFor()`, to force a dialect (drizzle-kit configs) |
 | `APP_URL`, `URL`, `VERCEL_PROJECT_PRODUCTION_URL`, `VERCEL_URL`, `HEROKU_APP_NAME` | `platformUrl()` |
 | `BRAND_*`, `ORG_*` | `brandingFromEnv(env, …)`, from the object you pass |
@@ -1017,21 +1133,22 @@ The package reads very little from `process.env` on its own; everything else is 
 
 ## Production checklist
 
-- The Better Auth `secret` and the local storage signing `secret` are long random values (at least 32
+- The Better Auth `secret` and `STORAGE_SECRET` (or `AUTH_SECRET`) are long random values (at least 32
   characters), kept out of the repository.
-- Captcha has real `siteKey` and `secretKey` values (missing keys fall back to always-pass test keys).
-- Storage is not local on hosts with an ephemeral disk.
+- Captcha has real site and secret keys; without them every check fails in production.
+- `STORAGE_DRIVER` is not `local` on hosts with an ephemeral disk.
 - Migrations for the selected dialect run before the new build serves traffic.
-- `demoPaymentProvider`, `devMailDriver` and `devSmsDriver` are only used in development or demo mode.
+- `DEMO_MODE` is off, unless this deployment is the public demo.
 - Paystack webhooks point at your webhook route, and payments are checked against the expected amount.
-- Error reporting uses Sentry (or another driver) rather than the console driver.
+- `ERRORS_DRIVER=sentry` with `SENTRY_DSN` set, rather than the console.
+- With Clerk: `clerkMiddleware()` runs in `proxy.ts`, and the session lifetime is set in the Clerk dashboard.
 
 ## Not included yet
 
-Clerk, Africa's Talking and Twilio drivers, background jobs, live updates (polling/SSE), per-visitor demo
+Africa's Talking and Twilio drivers, background jobs, live updates (polling/SSE), per-visitor demo
 sandboxes, PostgreSQL row-level security, direct browser-to-store uploads and a CLI. Until then, apps build
-these themselves on the interfaces above (`MailDriver`, `SmsDriver`, `StorageDriver`, `PaymentProvider`,
-`ErrorDriver` are all plain objects you can implement).
+these themselves on the interfaces above; any provider can be added as a [custom
+provider](#providers-from-configuration).
 
 ## Development
 

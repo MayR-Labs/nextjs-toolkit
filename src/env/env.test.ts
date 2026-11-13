@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { booleanString, commaList, emailList, requireWith } from ".";
+import { booleanString, commaList, emailList, requireWith } from "./helpers";
 
 describe("env helpers", () => {
   it("parses comma lists", () => {

@@ -23,6 +23,7 @@ export default defineConfig([
     "tenancy": "src/tenancy/index.ts",
     "auth": "src/auth/index.ts",
     "auth/better-auth": "src/auth/better-auth.ts",
+    "auth/clerk": "src/auth/clerk.ts",
     "settings": "src/settings/index.ts",
     "features": "src/features/index.ts",
     "branding": "src/branding/index.ts",

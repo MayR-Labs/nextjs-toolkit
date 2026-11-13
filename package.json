@@ -1,6 +1,6 @@
 {
   "name": "@mlabshq/nextjs-webkit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Server-side building blocks for Next.js apps: env, Drizzle on SQLite/PostgreSQL/MySQL, tenancy, auth, settings, editions and licences, branding, storage, email, SMS, captcha, payments, errors, server actions and demo mode.",
   "keywords": [
     "nextjs",
@@ -77,6 +77,11 @@
       "types": "./dist/types/auth/better-auth.d.ts",
       "import": "./dist/auth/better-auth.js",
       "default": "./dist/auth/better-auth.js"
+    },
+    "./auth/clerk": {
+      "types": "./dist/types/auth/clerk.d.ts",
+      "import": "./dist/auth/clerk.js",
+      "default": "./dist/auth/clerk.js"
     },
     "./settings": {
       "types": "./dist/types/settings/index.d.ts",
@@ -194,6 +199,7 @@
     "@sentry/nextjs": ">=9",
     "@t3-oss/env-nextjs": ">=0.13",
     "better-auth": ">=1.3",
+    "drizzle-kit": ">=0.31",
     "drizzle-orm": ">=0.44",
     "mysql2": "^3",
     "next": ">=16",
@@ -201,7 +207,7 @@
     "postgres": "^3",
     "react": ">=19",
     "zod": ">=4",
-    "drizzle-kit": ">=0.31"
+    "@clerk/nextjs": ">=6"
   },
   "peerDependenciesMeta": {
     "@aws-sdk/client-s3": {
@@ -230,12 +236,16 @@
     },
     "drizzle-kit": {
       "optional": true
+    },
+    "@clerk/nextjs": {
+      "optional": true
     }
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.2",
     "@aws-sdk/client-s3": "^3.1167.0",
     "@aws-sdk/s3-request-presigner": "^3.1167.0",
+    "@biomejs/biome": "2.4.2",
+    "@clerk/nextjs": "^7.9.25",
     "@libsql/client": "^0.18.0",
     "@sentry/nextjs": ">=9",
     "@t3-oss/env-nextjs": "^0.13.11",

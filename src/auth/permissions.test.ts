@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { definePermissions } from "./permissions";
 
-const access = definePermissions(["patient.read", "billing.refund", "billing.view", "admin.users"] as const, {
-  owner: ["*"],
-  cashier: ["billing.*", "patient.read"],
-  nurse: ["patient.read"],
-});
+const access = definePermissions(
+  ["patient.read", "billing.refund", "billing.view", "admin.users"] as const,
+  {
+    owner: ["*"],
+    cashier: ["billing.*", "patient.read"],
+    nurse: ["patient.read"],
+  },
+);
 
 describe("permissions", () => {
   it("grants by exact, wildcard and star", () => {
@@ -16,6 +19,10 @@ describe("permissions", () => {
   });
 
   it("lists granted permissions", () => {
-    expect(access.granted(["cashier"])).toEqual(["patient.read", "billing.refund", "billing.view"]);
+    expect(access.granted(["cashier"])).toEqual([
+      "patient.read",
+      "billing.refund",
+      "billing.view",
+    ]);
   });
 });

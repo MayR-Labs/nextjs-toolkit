@@ -23,7 +23,9 @@ export function definePermissions<P extends string, R extends string>(
     can(userRoles: string | readonly string[], permission: P): boolean {
       const list = typeof userRoles === "string" ? [userRoles] : userRoles;
       return list.some((role) =>
-        ((roles as Record<string, readonly string[]>)[role] ?? []).some((p) => matches(p, permission)),
+        ((roles as Record<string, readonly string[]>)[role] ?? []).some((p) =>
+          matches(p, permission),
+        ),
       );
     },
     /** Every permission a set of roles grants, e.g. for the roles screen. */

@@ -2,12 +2,12 @@ import type { Kit } from "./db/kit";
 
 /**
  * Tables the toolkit itself relies on. Spread them into the app's `defineTables` factory:
- *   defineTables((t) => ({ ...toolkitTables(t), patients: … }))
+ *   They are added to every schema by `defineTables`; call this yourself only for a custom schema.
  * Users are global identities; what a user may do in a tenant is the app's membership table.
  */
-export function toolkitTables(t: Kit) {
+export function webkitTables(t: Kit) {
   const tenants = t.table(
-    "tk_tenants",
+    "mlwebkit__tenants",
     {
       id: t.id(),
       slug: t.text("slug", { length: 63 }).notNull(),
@@ -21,11 +21,11 @@ export function toolkitTables(t: Kit) {
       createdAt: t.createdAt(),
       updatedAt: t.updatedAt(),
     },
-    (table) => [t.uniqueIndex("tk_tenants_slug").on(table.slug)],
+    (table) => [t.uniqueIndex("mlwebkit__tenants_slug").on(table.slug)],
   );
 
   const tenantDomains = t.table(
-    "tk_tenant_domains",
+    "mlwebkit__tenant_domains",
     {
       id: t.id(),
       tenantId: t.ref("tenant_id").notNull(),
@@ -33,12 +33,12 @@ export function toolkitTables(t: Kit) {
       verifiedAt: t.timestamp("verified_at"),
       createdAt: t.createdAt(),
     },
-    (table) => [t.uniqueIndex("tk_tenant_domains_host").on(table.host)],
+    (table) => [t.uniqueIndex("mlwebkit__tenant_domains_host").on(table.host)],
   );
 
-  // Better Auth models (user, session, account, verification), mapped to tk_ tables.
+  // Better Auth models (user, session, account, verification), mapped to mlwebkit__ tables.
   const users = t.table(
-    "tk_users",
+    "mlwebkit__users",
     {
       id: t.id(),
       name: t.text("name").notNull(),
@@ -48,11 +48,11 @@ export function toolkitTables(t: Kit) {
       createdAt: t.createdAt(),
       updatedAt: t.updatedAt(),
     },
-    (table) => [t.uniqueIndex("tk_users_email").on(table.email)],
+    (table) => [t.uniqueIndex("mlwebkit__users_email").on(table.email)],
   );
 
   const sessions = t.table(
-    "tk_sessions",
+    "mlwebkit__sessions",
     {
       id: t.id(),
       userId: t.ref("user_id").notNull(),
@@ -64,13 +64,13 @@ export function toolkitTables(t: Kit) {
       updatedAt: t.updatedAt(),
     },
     (table) => [
-      t.uniqueIndex("tk_sessions_token").on(table.token),
-      t.index("tk_sessions_user").on(table.userId),
+      t.uniqueIndex("mlwebkit__sessions_token").on(table.token),
+      t.index("mlwebkit__sessions_user").on(table.userId),
     ],
   );
 
   const accounts = t.table(
-    "tk_accounts",
+    "mlwebkit__accounts",
     {
       id: t.id(),
       userId: t.ref("user_id").notNull(),
@@ -86,10 +86,10 @@ export function toolkitTables(t: Kit) {
       createdAt: t.createdAt(),
       updatedAt: t.updatedAt(),
     },
-    (table) => [t.index("tk_accounts_user").on(table.userId)],
+    (table) => [t.index("mlwebkit__accounts_user").on(table.userId)],
   );
 
-  const verifications = t.table("tk_verifications", {
+  const verifications = t.table("mlwebkit__verifications", {
     id: t.id(),
     identifier: t.text("identifier").notNull(),
     value: t.longText("value").notNull(),
@@ -99,7 +99,7 @@ export function toolkitTables(t: Kit) {
   });
 
   const settings = t.table(
-    "tk_settings",
+    "mlwebkit__settings",
     {
       id: t.id(),
       /** A tenant id, or "platform" for platform-wide defaults and locks. */
@@ -113,12 +113,14 @@ export function toolkitTables(t: Kit) {
       updatedAt: t.updatedAt(),
     },
     (table) => [
-      t.uniqueIndex("tk_settings_key").on(table.tenantId, table.branch, table.key),
+      t
+        .uniqueIndex("mlwebkit__settings_key")
+        .on(table.tenantId, table.branch, table.key),
     ],
   );
 
   const outbox = t.table(
-    "tk_outbox",
+    "mlwebkit__outbox",
     {
       id: t.id(),
       tenantId: t.ref("tenant_id"),
@@ -128,11 +130,13 @@ export function toolkitTables(t: Kit) {
       body: t.longText("body").notNull(),
       createdAt: t.createdAt(),
     },
-    (table) => [t.index("tk_outbox_tenant").on(table.tenantId, table.createdAt)],
+    (table) => [
+      t.index("mlwebkit__outbox_tenant").on(table.tenantId, table.createdAt),
+    ],
   );
 
   const paymentEvents = t.table(
-    "tk_payment_events",
+    "mlwebkit__payment_events",
     {
       id: t.id(),
       provider: t.text("provider", { length: 40 }).notNull(),
@@ -142,21 +146,23 @@ export function toolkitTables(t: Kit) {
       createdAt: t.createdAt(),
     },
     (table) => [
-      t.uniqueIndex("tk_payment_events_event").on(table.provider, table.eventId),
+      t
+        .uniqueIndex("mlwebkit__payment_events_event")
+        .on(table.provider, table.eventId),
     ],
   );
 
   return {
-    tkTenants: tenants,
-    tkTenantDomains: tenantDomains,
-    tkUsers: users,
-    tkSessions: sessions,
-    tkAccounts: accounts,
-    tkVerifications: verifications,
-    tkSettings: settings,
-    tkOutbox: outbox,
-    tkPaymentEvents: paymentEvents,
+    webkitTenants: tenants,
+    webkitTenantDomains: tenantDomains,
+    webkitUsers: users,
+    webkitSessions: sessions,
+    webkitAccounts: accounts,
+    webkitVerifications: verifications,
+    webkitSettings: settings,
+    webkitOutbox: outbox,
+    webkitPaymentEvents: paymentEvents,
   };
 }
 
-export type ToolkitTables = ReturnType<typeof toolkitTables>;
+export type WebkitTables = ReturnType<typeof webkitTables>;
