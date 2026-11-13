@@ -206,15 +206,20 @@ exported too:
 
 Write the schema once with a dialect-neutral column kit, then connect to whichever database `DATABASE_URL`
 points at. `postgres://` or `postgresql://` selects PostgreSQL, `mysql://` selects MySQL, anything else
-(`file:`, `libsql://`, `:memory:`) selects SQLite.
+(`file:`, `libsql://`, `:memory:`) selects SQLite. Local `file:` databases are switched to WAL mode with a
+5-second busy timeout on connect.
+
+`isUniqueViolation(error)` tells a unique-constraint failure apart from other errors on all three dialects;
+`createRateLimiter({ db, table: schema.webkitRateLimits })` gives `consume(key, { max, windowSeconds })` and
+`reset(key)` on a shared table.
 
 ### Schema
 
 `defineTables` takes a factory that receives the kit `t` and returns your tables. It returns
 `schemaFor(dialect)`, which builds (and caches) the tables for one dialect, **with the webkit's own tables
 added**: `mlwebkit__tenants`, `mlwebkit__tenant_domains`, `mlwebkit__users`, `mlwebkit__sessions`,
-`mlwebkit__accounts`, `mlwebkit__verifications`, `mlwebkit__settings`, `mlwebkit__outbox` and
-`mlwebkit__payment_events` (as `webkitTenants`, `webkitUsers`, … in TypeScript). They are generated and
+`mlwebkit__accounts`, `mlwebkit__verifications`, `mlwebkit__settings`, `mlwebkit__outbox`,
+`mlwebkit__payment_events` and `mlwebkit__rate_limits` (as `webkitTenants`, `webkitUsers`, … in TypeScript). They are generated and
 migrated with the app's tables; you never declare them.
 
 | Column helper | PostgreSQL | MySQL | SQLite |
@@ -465,7 +470,8 @@ Read from env; pass the option to `betterAuthProvider` to override.
 | `AUTH_SIGN_UP` [invite-only] | `signUp` | `invite-only` disables public sign-up (use `createUser` / `inviteUser`); `open` and `open-with-approval` allow it |
 | `AUTH_SESSION_STRATEGY` [database] | `session.strategy` | `database` checks the session row every request; `cookie-cache` also caches it in a signed cookie for `AUTH_COOKIE_CACHE_MINUTES` [5], faster but sign-out on other devices lags by up to that long |
 | `AUTH_IDLE_TIMEOUT_MINUTES` [30] | `session.idleMinutes` | Sessions slide forward on activity and expire after this long idle |
-| `AUTH_LOCKOUT_ATTEMPTS` [5], `AUTH_LOCKOUT_MINUTES` [15] | `lockout` | Rate limit on password sign-in |
+| `AUTH_LOCKOUT_ATTEMPTS` [5], `AUTH_LOCKOUT_MINUTES` [15] | `lockout` | Rate limit on password sign-in and reset requests: per email (`attempts` per window; a successful sign-in clears it) and per client IP (`attempts × 10`, since offices share IPs). Stored in `mlwebkit__rate_limits`, so it holds for `auth.password.*` calls from server actions and across instances. Over the limit: `AuthError("Too many attempts. Try again in N minutes.", "rejected")` |
+| `TRUST_PROXY` [false] | | Use the first `x-forwarded-for` entry as the client IP (only behind a proxy you control); otherwise the last entry, then `x-real-ip` |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | `google` | Google sign-in, when both are set (and `AUTH_METHODS` is empty or includes `google`) |
 | `BRAND_NAME` | `appName` | Shown in emails |
 | `TENANCY_MODE=multi` + `TENANCY_*` | `trustedOrigins` | The platform host and every tenant subdomain are trusted origins |
@@ -729,6 +735,9 @@ export const storage = createStorage({ env, providers: [s3] });
 | `cloudinary` | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, optional `CLOUDINARY_FOLDER` |
 
 Options `local`, `signedUrlSeconds` and `demo` override the variables.
+
+Local files are served with `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none';
+sandbox`; anything other than a PNG, JPEG, WebP or GIF image is sent as `Content-Disposition: attachment`.
 
 Uploading from a server action:
 

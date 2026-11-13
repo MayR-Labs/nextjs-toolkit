@@ -29,14 +29,19 @@ export function defineSettings<R extends SettingsRegistry>(registry: R): R {
 /** "billing.timing" → "SETTING_BILLING_TIMING"; with a branch → "SETTING_BILLING_TIMING__IKEJA". */
 export function settingEnvName(key: string, branch?: string): string {
   const base = `SETTING_${key.replace(/[^a-zA-Z0-9]+/g, "_").toUpperCase()}`;
-  return branch ? `${base}__${branch.replace(/[^a-zA-Z0-9]+/g, "_").toUpperCase()}` : base;
+  return branch
+    ? `${base}__${branch.replace(/[^a-zA-Z0-9]+/g, "_").toUpperCase()}`
+    : base;
 }
 
 /**
  * Parses an env string against a setting's schema. Tries the raw string, then JSON (numbers,
  * booleans, objects), then a comma-separated list. Returns undefined when none fits.
  */
-export function parseEnvValue(schema: z.ZodType, raw: string | undefined): unknown {
+export function parseEnvValue(
+  schema: z.ZodType,
+  raw: string | undefined,
+): unknown {
   if (raw === undefined || raw === "") return undefined;
   const candidates: unknown[] = [raw];
   try {

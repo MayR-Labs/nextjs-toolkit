@@ -25,18 +25,27 @@ type Guard<Ctx> = (ctx: Ctx) => Promise<void> | void;
  */
 export function createActionClient<Ctx>(options: ActionClientOptions<Ctx>) {
   return function action(name: string): ActionBuilder<Ctx, unknown> {
-    return makeBuilder<Ctx, unknown>(options, name, { guards: [], schema: z.any(), mutation: true });
+    return makeBuilder<Ctx, unknown>(options, name, {
+      guards: [],
+      schema: z.any(),
+      mutation: true,
+    });
   };
 }
 
-export type ServerAction<T> = (prevOrInput?: unknown, maybeForm?: unknown) => Promise<ActionResult<T>>;
+export type ServerAction<T> = (
+  prevOrInput?: unknown,
+  maybeForm?: unknown,
+) => Promise<ActionResult<T>>;
 
 export interface ActionBuilder<Ctx, I> {
   input<S extends ZodType>(schema: S): ActionBuilder<Ctx, z.infer<S>>;
   guard(guard: Guard<Ctx>): ActionBuilder<Ctx, I>;
   /** Marks a read-only action (allowed in demo mode, no beforeMutation). */
   readOnly(): ActionBuilder<Ctx, I>;
-  run<T>(handler: (args: { input: I; ctx: Ctx }) => Promise<T>): ServerAction<T>;
+  run<T>(
+    handler: (args: { input: I; ctx: Ctx }) => Promise<T>,
+  ): ServerAction<T>;
 }
 
 interface BuilderState<Ctx> {
@@ -45,20 +54,30 @@ interface BuilderState<Ctx> {
   mutation: boolean;
 }
 
-function makeBuilder<Ctx, I>(options: ActionClientOptions<Ctx>, name: string, state: BuilderState<Ctx>): ActionBuilder<Ctx, I> {
+function makeBuilder<Ctx, I>(
+  options: ActionClientOptions<Ctx>,
+  name: string,
+  state: BuilderState<Ctx>,
+): ActionBuilder<Ctx, I> {
   return {
     input<S extends ZodType>(schema: S) {
       return makeBuilder<Ctx, z.infer<S>>(options, name, { ...state, schema });
     },
     guard(guard: Guard<Ctx>) {
-      return makeBuilder<Ctx, I>(options, name, { ...state, guards: [...state.guards, guard] });
+      return makeBuilder<Ctx, I>(options, name, {
+        ...state,
+        guards: [...state.guards, guard],
+      });
     },
     /** Marks a read-only action (allowed in demo mode, no beforeMutation). */
     readOnly() {
       return makeBuilder<Ctx, I>(options, name, { ...state, mutation: false });
     },
     run<T>(handler: (args: { input: I; ctx: Ctx }) => Promise<T>) {
-      return async (prevOrInput?: unknown, maybeForm?: unknown): Promise<ActionResult<T>> => {
+      return async (
+        prevOrInput?: unknown,
+        maybeForm?: unknown,
+      ): Promise<ActionResult<T>> => {
         try {
           const raw =
             maybeForm instanceof FormData
@@ -73,7 +92,10 @@ function makeBuilder<Ctx, I>(options: ActionClientOptions<Ctx>, name: string, st
             return {
               ok: false,
               error: "Please check the highlighted fields.",
-              fieldErrors: z.flattenError(parsed.error).fieldErrors as Record<string, string[]>,
+              fieldErrors: z.flattenError(parsed.error).fieldErrors as Record<
+                string,
+                string[]
+              >,
             };
           }
           if (state.mutation) await options.beforeMutation?.(ctx, name);
@@ -82,9 +104,17 @@ function makeBuilder<Ctx, I>(options: ActionClientOptions<Ctx>, name: string, st
         } catch (error) {
           unstable_rethrow(error);
           if (error instanceof ActionError)
-            return { ok: false, error: error.message, fieldErrors: error.fieldErrors };
+            return {
+              ok: false,
+              error: error.message,
+              fieldErrors: error.fieldErrors,
+            };
           const ref = options.errors.capture(error, { action: name });
-          return { ok: false, error: `Something went wrong. Reference: ${ref}`, ref };
+          return {
+            ok: false,
+            error: `Something went wrong. Reference: ${ref}`,
+            ref,
+          };
         }
       };
     },

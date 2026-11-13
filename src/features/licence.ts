@@ -1,4 +1,10 @@
-import { createPrivateKey, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
+import {
+  createPrivateKey,
+  createPublicKey,
+  generateKeyPairSync,
+  sign,
+  verify,
+} from "node:crypto";
 
 export interface LicencePayload {
   /** Who it was issued to. */
@@ -25,15 +31,27 @@ export function generateLicenceKeys() {
 }
 
 /** `base64url(payload).base64url(signature)` */
-export function signLicence(payload: LicencePayload, privateKeyPem: string): string {
+export function signLicence(
+  payload: LicencePayload,
+  privateKeyPem: string,
+): string {
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  const signature = sign(null, Buffer.from(body), createPrivateKey(privateKeyPem));
+  const signature = sign(
+    null,
+    Buffer.from(body),
+    createPrivateKey(privateKeyPem),
+  );
   return `${body}.${signature.toString("base64url")}`;
 }
 
-export function verifyLicence(key: string, publicKeyPem: string, now = new Date()): LicenceCheck {
+export function verifyLicence(
+  key: string,
+  publicKeyPem: string,
+  now = new Date(),
+): LicenceCheck {
   const [body, signature] = key.trim().split(".");
-  if (!body || !signature) return { valid: false, reason: "Malformed licence key" };
+  if (!body || !signature)
+    return { valid: false, reason: "Malformed licence key" };
   const ok = verify(
     null,
     Buffer.from(body),
@@ -41,7 +59,9 @@ export function verifyLicence(key: string, publicKeyPem: string, now = new Date(
     Buffer.from(signature, "base64url"),
   );
   if (!ok) return { valid: false, reason: "Licence signature does not match" };
-  const payload = JSON.parse(Buffer.from(body, "base64url").toString()) as LicencePayload;
+  const payload = JSON.parse(
+    Buffer.from(body, "base64url").toString(),
+  ) as LicencePayload;
   const expired = payload.expiresAt ? new Date(payload.expiresAt) < now : false;
   return { valid: true, payload, expired };
 }

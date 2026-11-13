@@ -3,11 +3,20 @@
 import { createContext, type ReactNode, use, useEffect, useRef } from "react";
 
 /** Values the browser needs, resolved on the server per request (never NEXT_PUBLIC_*). */
-export type PublicConfig = Record<string, string | number | boolean | null | undefined>;
+export type PublicConfig = Record<
+  string,
+  string | number | boolean | null | undefined
+>;
 
 const PublicConfigContext = createContext<PublicConfig>({});
 
-export function PublicConfigProvider({ value, children }: { value: PublicConfig; children: ReactNode }) {
+export function PublicConfigProvider({
+  value,
+  children,
+}: {
+  value: PublicConfig;
+  children: ReactNode;
+}) {
   return <PublicConfigContext value={value}>{children}</PublicConfigContext>;
 }
 
@@ -24,7 +33,13 @@ const scripts: Record<string, string> = {
  * Renders the configured captcha widget. Its token is posted with the form as
  * `cf-turnstile-response` or `h-captcha-response`.
  */
-export function CaptchaWidget({ provider, siteKey }: { provider?: string; siteKey?: string }) {
+export function CaptchaWidget({
+  provider,
+  siteKey,
+}: {
+  provider?: string;
+  siteKey?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!provider || provider === "off" || !scripts[provider]) return;
@@ -35,5 +50,11 @@ export function CaptchaWidget({ provider, siteKey }: { provider?: string; siteKe
     document.head.appendChild(script);
   }, [provider]);
   if (!provider || provider === "off" || !siteKey) return null;
-  return <div ref={ref} className={provider === "turnstile" ? "cf-turnstile" : "h-captcha"} data-sitekey={siteKey} />;
+  return (
+    <div
+      ref={ref}
+      className={provider === "turnstile" ? "cf-turnstile" : "h-captcha"}
+      data-sitekey={siteKey}
+    />
+  );
 }

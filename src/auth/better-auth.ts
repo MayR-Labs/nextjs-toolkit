@@ -6,6 +6,7 @@ import type { EnvReader } from "../config";
 import type { Dialect } from "../db/dialect";
 import type { Database } from "../db/driver";
 import { randomToken } from "../db/ids";
+import { createRateLimiter, type RateLimiter } from "../db/rate-limit";
 import { escapeHtml, type MailMessage } from "../email";
 import type { WebkitTables } from "../tables";
 import { type AuthDriver, AuthError, type AuthProvider } from "./driver";
@@ -172,11 +173,87 @@ function toAuthError(
   throw error;
 }
 
+/**
+ * The client IP from proxy headers, or undefined. With `trustProxy` the first x-forwarded-for entry
+ * (the original client, as reported by a proxy you run); without it the last entry (added by the
+ * nearest hop, so a client cannot choose it), then x-real-ip.
+ */
+export function clientIpFrom(
+  headers: Headers | undefined,
+  trustProxy = false,
+): string | undefined {
+  const forwarded = headers
+    ?.get("x-forwarded-for")
+    ?.split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const ip =
+    (forwarded?.length
+      ? trustProxy
+        ? forwarded[0]
+        : forwarded[forwarded.length - 1]
+      : undefined) ?? headers?.get("x-real-ip")?.trim();
+  return ip || undefined;
+}
+
+export interface BetterAuthLimits {
+  limiter: RateLimiter;
+  /** Attempts per email per window (AUTH_LOCKOUT_ATTEMPTS). */
+  attempts: number;
+  /** Window length in minutes (AUTH_LOCKOUT_MINUTES). */
+  minutes: number;
+  /**
+   * Attempts per IP per window. Many people can share one IP (a hospital or office NAT), so this is
+   * higher than the per-email limit. Default: `attempts * 10`.
+   */
+  ipAttempts?: number;
+  /** Trust the first x-forwarded-for entry (only behind a proxy you control). Default false. */
+  trustProxy?: boolean;
+}
+
 /** Wraps a Better Auth instance in the shared AuthDriver interface. */
 export function betterAuthDriver(
   auth: Auth,
-  options: { baseURL: string },
+  options: { baseURL: string; limits?: BetterAuthLimits },
 ): AuthDriver {
+  const limits = options.limits;
+
+  /**
+   * Counts an attempt against the email and the client IP. `auth.api.*` calls skip Better Auth's own
+   * rate limiter (it only runs in its HTTP router), so server-action sign-ins are limited here.
+   */
+  async function guard(
+    action: "signin" | "reset",
+    email: string,
+    headers?: Headers,
+  ) {
+    if (!limits || limits.attempts <= 0) return;
+    const windowSeconds = Math.max(1, limits.minutes) * 60;
+    const checks = [
+      limits.limiter.consume(`${action}:email:${email}`, {
+        max: limits.attempts,
+        windowSeconds,
+      }),
+    ];
+    const ip = clientIpFrom(headers, limits.trustProxy);
+    if (ip)
+      checks.push(
+        limits.limiter.consume(`${action}:ip:${ip}`, {
+          max: limits.ipAttempts ?? limits.attempts * 10,
+          windowSeconds,
+        }),
+      );
+    const results = await Promise.all(checks);
+    const blocked = results.filter((r) => !r.ok);
+    if (blocked.length === 0) return;
+    const wait = Math.max(...blocked.map((r) => r.retryAfterSeconds));
+    const minutes = Math.max(1, Math.ceil(wait / 60));
+    throw new AuthError(
+      `Too many attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+      "rejected",
+    );
+  }
+
   const handler = toNextJsHandler(auth);
   const requestReset = (email: string, redirectTo: string, headers?: Headers) =>
     auth.api.requestPasswordReset({
@@ -222,14 +299,14 @@ export function betterAuthDriver(
     revokeAllSessions: (userId) => revokeAllSessions(auth, userId),
     password: {
       async signIn(input, headers) {
+        const email = input.email.trim().toLowerCase();
+        await guard("signin", email, headers);
         try {
           await auth.api.signInEmail({
-            body: {
-              email: input.email.toLowerCase(),
-              password: input.password,
-            },
+            body: { email, password: input.password },
             headers,
           });
+          await limits?.limiter.reset(`signin:email:${email}`);
         } catch (error) {
           toAuthError(error, {
             message: "Email or password is incorrect.",
@@ -238,6 +315,7 @@ export function betterAuthDriver(
         }
       },
       async requestReset(input, headers) {
+        await guard("reset", input.email.trim().toLowerCase(), headers);
         try {
           await requestReset(input.email, input.redirectTo, headers);
         } catch (error) {
@@ -336,6 +414,10 @@ export function betterAuthProvider(
       const googleSecret = env.str("GOOGLE_CLIENT_SECRET");
       const mailer = o.mailer;
       const { schema } = database;
+      const lockout = o.lockout ?? {
+        attempts: env.int("AUTH_LOCKOUT_ATTEMPTS", 5),
+        minutes: env.int("AUTH_LOCKOUT_MINUTES", 15),
+      };
       const auth = createBetterAuth({
         db: database.db,
         dialect: database.dialect,
@@ -359,10 +441,7 @@ export function betterAuthProvider(
           idleMinutes: env.int("AUTH_IDLE_TIMEOUT_MINUTES", 30),
           cookieCacheMinutes: env.int("AUTH_COOKIE_CACHE_MINUTES", 5),
         },
-        lockout: o.lockout ?? {
-          attempts: env.int("AUTH_LOCKOUT_ATTEMPTS", 5),
-          minutes: env.int("AUTH_LOCKOUT_MINUTES", 15),
-        },
+        lockout,
         google:
           o.google ??
           (googleId &&
@@ -380,7 +459,19 @@ export function betterAuthProvider(
             : undefined),
         extend: o.extend,
       });
-      return betterAuthDriver(auth, { baseURL: o.baseURL ?? baseURL });
+      return betterAuthDriver(auth, {
+        baseURL: o.baseURL ?? baseURL,
+        limits: schema.webkitRateLimits
+          ? {
+              limiter: createRateLimiter({
+                db: database.db,
+                table: schema.webkitRateLimits,
+              }),
+              ...lockout,
+              trustProxy: env.bool("TRUST_PROXY", false),
+            }
+          : undefined,
+      });
     },
   };
 }

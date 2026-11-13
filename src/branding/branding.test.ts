@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { type Branding, brandCssVariables, brandingFromEnv, normaliseHex, readableText } from ".";
+import {
+  type Branding,
+  brandCssVariables,
+  brandingFromEnv,
+  normaliseHex,
+  readableText,
+} from ".";
 
 const defaults: Branding = {
   name: "Hospital MS",
@@ -22,7 +28,14 @@ describe("branding", () => {
   });
 
   it("merges env over defaults", () => {
-    const b = brandingFromEnv({ BRAND_NAME: "St. Luke's", BRAND_PRIMARY_COLOR: "zzz", ORG_PHONE: "0800" }, defaults);
+    const b = brandingFromEnv(
+      {
+        BRAND_NAME: "St. Luke's",
+        BRAND_PRIMARY_COLOR: "zzz",
+        ORG_PHONE: "0800",
+      },
+      defaults,
+    );
     expect(b.name).toBe("St. Luke's");
     expect(b.shortName).toBe("St. Luke's");
     expect(b.primaryColor).toBe("#1e4fa0");

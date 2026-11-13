@@ -24,15 +24,16 @@ type ClerkUser = Awaited<
 >;
 
 function profile(user: ClerkUser) {
-  const email = (
-    user.primaryEmailAddress ?? user.emailAddresses[0]
-  )?.emailAddress.toLowerCase();
+  const address = user.primaryEmailAddress ?? user.emailAddresses[0];
+  const email = address?.emailAddress.toLowerCase();
   if (!email) throw new Error(`Clerk user ${user.id} has no email address`);
   const name =
     user.fullName?.trim() ||
     [user.firstName, user.lastName].filter(Boolean).join(" ") ||
     email;
-  return { email, name };
+  /** Only a verified address proves the Clerk user owns it. */
+  const verified = address?.verification?.status === "verified";
+  return { email, name, verified };
 }
 
 function splitName(name: string) {
@@ -46,7 +47,8 @@ function splitName(name: string) {
 /**
  * Clerk as the auth provider. Clerk owns sign-in, passwords and sessions; the local `mlwebkit__users` table
  * stays the source of user ids. A Clerk user is linked to a local user (through `mlwebkit__accounts`) on first
- * sign-in, matching by email, so users invited before they first sign in keep their id.
+ * sign-in, matching by email, so users invited before they first sign in keep their id. Only a verified
+ * Clerk email is matched; an unverified one gets a separate local user.
  *
  * The app must run `clerkMiddleware()` in `proxy.ts`, wrap the root layout in `<ClerkProvider>`, and
  * render Clerk's `<SignIn />`. Clerk reads CLERK_SECRET_KEY and NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY itself.
@@ -69,7 +71,11 @@ export function clerkDriver(config: ClerkConfig): AuthDriver {
   }
 
   /** The local user for an email, created if missing. */
-  async function ensureLocalUser(email: string, name: string): Promise<string> {
+  async function ensureLocalUser(
+    email: string,
+    name: string,
+    emailVerified = true,
+  ): Promise<string> {
     const find = async () => {
       const [row] = await db
         .select({ id: webkitUsers.id })
@@ -82,9 +88,7 @@ export function clerkDriver(config: ClerkConfig): AuthDriver {
     if (existing) return existing;
     const id = newId();
     try {
-      await db
-        .insert(webkitUsers)
-        .values({ id, email, name, emailVerified: true });
+      await db.insert(webkitUsers).values({ id, email, name, emailVerified });
       return id;
     } catch (error) {
       // Another request created it at the same moment (unique email).
@@ -92,6 +96,15 @@ export function clerkDriver(config: ClerkConfig): AuthDriver {
       if (raced) return raced;
       throw error;
     }
+  }
+
+  async function emailTaken(email: string): Promise<boolean> {
+    const [row] = await db
+      .select({ id: webkitUsers.id })
+      .from(webkitUsers)
+      .where(eq(webkitUsers.email, email))
+      .limit(1);
+    return Boolean(row);
   }
 
   async function linkedUserId(
@@ -113,8 +126,19 @@ export function clerkDriver(config: ClerkConfig): AuthDriver {
   async function link(user: ClerkUser): Promise<string> {
     const already = await linkedUserId(user.id);
     if (already) return already;
-    const { email, name } = profile(user);
-    const userId = await ensureLocalUser(email, name);
+    const { email, name, verified } = profile(user);
+    // Linking by email hands over an existing local user (and its memberships), so it needs proof the
+    // Clerk user owns the address. Unverified: a local user of its own, never an existing one. If the
+    // email is already taken locally, that user gets a placeholder address under `.invalid`.
+    const userId = verified
+      ? await ensureLocalUser(email, name)
+      : await ensureLocalUser(
+          (await emailTaken(email))
+            ? `clerk-${user.id.toLowerCase()}@unverified.invalid`
+            : email,
+          name,
+          false,
+        );
     await db.insert(webkitAccounts).values({
       id: newId(),
       userId,

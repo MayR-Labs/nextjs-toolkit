@@ -45,6 +45,8 @@ export const webkitEnv = {
   AUTH_ABSOLUTE_TIMEOUT_HOURS: intString(12),
   AUTH_LOCKOUT_ATTEMPTS: intString(5),
   AUTH_LOCKOUT_MINUTES: intString(15),
+  /** Behind a proxy you run: trust the first x-forwarded-for entry as the client IP. */
+  TRUST_PROXY: booleanString(false),
   GOOGLE_CLIENT_ID: optional(),
   GOOGLE_CLIENT_SECRET: optional(),
   /** Clerk's server key. Its publishable key is NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, read by Clerk itself. */

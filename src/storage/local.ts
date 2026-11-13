@@ -11,7 +11,9 @@ export interface LocalStorageConfig {
 }
 
 function sign(key: string, expires: number, secret: string) {
-  return createHmac("sha256", secret).update(`${key}:${expires}`).digest("base64url");
+  return createHmac("sha256", secret)
+    .update(`${key}:${expires}`)
+    .digest("base64url");
 }
 
 function safePath(dir: string, key: string): string {
@@ -29,13 +31,20 @@ export function localStorageDriver(config: LocalStorageConfig): StorageDriver {
       const path = safePath(config.dir, input.key);
       await mkdir(dirname(path), { recursive: true });
       await writeFile(path, input.body);
-      await writeFile(`${path}.meta.json`, JSON.stringify({ contentType: input.contentType, visibility: input.visibility }));
+      await writeFile(
+        `${path}.meta.json`,
+        JSON.stringify({
+          contentType: input.contentType,
+          visibility: input.visibility,
+        }),
+      );
       return {
         key: input.key,
         bytes: input.body.byteLength,
         contentType: input.contentType,
         visibility: input.visibility,
-        publicUrl: input.visibility === "public" ? `${config.baseUrl}/${input.key}` : "",
+        publicUrl:
+          input.visibility === "public" ? `${config.baseUrl}/${input.key}` : "",
       };
     },
     read: (key) => readFile(safePath(config.dir, key)),
@@ -52,8 +61,39 @@ export function localStorageDriver(config: LocalStorageConfig): StorageDriver {
   };
 }
 
+/** Raster images are the only types served inline; everything else is a download. */
+const INLINE_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+]);
+
+/** Response headers for a stored file: no sniffing, no scripts, and a download for anything not a raster image. */
+export function localFileHeaders(
+  contentType: string,
+  visibility: string,
+): Record<string, string> {
+  const type = contentType.split(";")[0]?.trim().toLowerCase() ?? "";
+  const headers: Record<string, string> = {
+    "Content-Type": contentType,
+    "Cache-Control":
+      visibility === "private"
+        ? "private, no-store"
+        : "public, max-age=31536000, immutable",
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "default-src 'none'; sandbox",
+  };
+  if (!INLINE_TYPES.has(type)) headers["Content-Disposition"] = "attachment";
+  return headers;
+}
+
 /** Route handler body for local files: checks the signature of private files, then streams them. */
-export async function serveLocalFile(config: LocalStorageConfig, key: string, url: URL): Promise<Response> {
+export async function serveLocalFile(
+  config: LocalStorageConfig,
+  key: string,
+  url: URL,
+): Promise<Response> {
   let path: string;
   try {
     path = safePath(config.dir, key);
@@ -70,15 +110,13 @@ export async function serveLocalFile(config: LocalStorageConfig, key: string, ur
     const expires = Number(url.searchParams.get("expires"));
     const sig = Buffer.from(url.searchParams.get("sig") ?? "");
     const expected = Buffer.from(sign(key, expires, config.secret));
-    const valid = sig.length === expected.length && timingSafeEqual(sig, expected);
-    if (!valid || expires < Date.now() / 1000) return new Response("Link expired", { status: 403 });
+    const valid =
+      sig.length === expected.length && timingSafeEqual(sig, expected);
+    if (!valid || expires < Date.now() / 1000)
+      return new Response("Link expired", { status: 403 });
   }
   const body = await readFile(path);
   return new Response(new Uint8Array(body), {
-    headers: {
-      "Content-Type": meta.contentType,
-      "Cache-Control": meta.visibility === "private" ? "private, no-store" : "public, max-age=31536000, immutable",
-      "X-Content-Type-Options": "nosniff",
-    },
+    headers: localFileHeaders(meta.contentType, meta.visibility),
   });
 }

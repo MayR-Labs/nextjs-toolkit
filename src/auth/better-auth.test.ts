@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { defineTables } from "../db/define";
 import { memoryDatabase } from "../testing";
-import { betterAuthProvider } from "./better-auth";
+import { betterAuthProvider, clientIpFrom } from "./better-auth";
 import { createAuth } from "./driver";
 
 vi.mock("next/navigation", () => ({ unstable_rethrow: () => {} }));
@@ -52,5 +52,58 @@ describe("Better Auth provider", () => {
       "ada@example.com",
       "bola@example.com",
     ]);
+  });
+
+  it("locks out repeated failed sign-ins and resets on success", async () => {
+    const schema = defineTables(() => ({}))("sqlite");
+    const db = await memoryDatabase(schema);
+    const auth = createAuth({
+      env: {
+        AUTH_SECRET: "test-secret-test-secret-test-secret",
+        AUTH_LOCKOUT_ATTEMPTS: "3",
+        AUTH_LOCKOUT_MINUTES: "10",
+      },
+      database: { db, dialect: "sqlite", schema },
+      baseURL: "http://app.test",
+      providers: [betterAuthProvider()],
+    });
+    await auth.createUser({
+      email: "ada@example.com",
+      name: "Ada",
+      password: "password123",
+    });
+    const headers = new Headers({ "x-forwarded-for": "10.0.0.1" });
+    const wrong = { email: "ada@example.com", password: "nope-nope" };
+    await expect(auth.password.signIn(wrong, headers)).rejects.toThrow(
+      /incorrect/,
+    );
+    await expect(auth.password.signIn(wrong, headers)).rejects.toThrow(
+      /incorrect/,
+    );
+    // A success clears the per-email counter.
+    await auth.password.signIn(
+      { email: "ada@example.com", password: "password123" },
+      headers,
+    );
+    for (let i = 0; i < 3; i++)
+      await expect(auth.password.signIn(wrong, headers)).rejects.toThrow(
+        /incorrect/,
+      );
+    await expect(
+      auth.password.signIn(
+        { email: "ada@example.com", password: "password123" },
+        headers,
+      ),
+    ).rejects.toThrow(/Too many attempts. Try again in 10 minutes/);
+  });
+
+  it("reads the client IP without trusting client-set forwarding by default", () => {
+    const headers = new Headers({ "x-forwarded-for": "1.1.1.1, 2.2.2.2" });
+    expect(clientIpFrom(headers)).toBe("2.2.2.2");
+    expect(clientIpFrom(headers, true)).toBe("1.1.1.1");
+    expect(clientIpFrom(new Headers({ "x-real-ip": "3.3.3.3" }))).toBe(
+      "3.3.3.3",
+    );
+    expect(clientIpFrom(new Headers())).toBeUndefined();
   });
 });

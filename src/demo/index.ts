@@ -14,14 +14,24 @@ export function demoGuard(config: DemoConfig) {
   const blocked = new Set(config.blocked ?? []);
   return (name: string) => {
     if (!config.enabled) return;
-    if (blocked.has(name) || [...blocked].some((b) => b.endsWith(".*") && name.startsWith(b.slice(0, -1)))) {
+    if (
+      blocked.has(name) ||
+      [...blocked].some(
+        (b) => b.endsWith(".*") && name.startsWith(b.slice(0, -1)),
+      )
+    ) {
       throw new ActionError("This is disabled in the demo.");
     }
   };
 }
 
 /** Relative dates keep demo data current: the seed is always "today" whenever it is rebuilt. */
-export function daysFromNow(days: number, hour = 9, minute = 0, now = new Date()): Date {
+export function daysFromNow(
+  days: number,
+  hour = 9,
+  minute = 0,
+  now = new Date(),
+): Date {
   const d = new Date(now);
   d.setDate(d.getDate() + days);
   d.setHours(hour, minute, 0, 0);
@@ -40,8 +50,10 @@ export function seededRandom(seed = 42) {
   };
   return {
     next,
-    int: (min: number, max: number) => Math.floor(next() * (max - min + 1)) + min,
-    pick: <T>(items: readonly T[]): T => items[Math.floor(next() * items.length)] as T,
+    int: (min: number, max: number) =>
+      Math.floor(next() * (max - min + 1)) + min,
+    pick: <T>(items: readonly T[]): T =>
+      items[Math.floor(next() * items.length)] as T,
     chance: (p: number) => next() < p,
   };
 }

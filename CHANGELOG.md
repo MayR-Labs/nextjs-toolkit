@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+- SQLite (local files): writes and new transactions wait asynchronously while another transaction is open, instead of blocking the whole Node process for the busy timeout.
+
+### Added
+
+- **Sign-in rate limiting that applies to server actions.** Better Auth only applies its rate limits in its
+  HTTP router, not to `auth.api.*` calls, so `password.signIn` and `password.requestReset` now count attempts
+  per email (`AUTH_LOCKOUT_ATTEMPTS` per `AUTH_LOCKOUT_MINUTES`) and per client IP (ten times that) in a new
+  `mlwebkit__rate_limits` table, and throw `AuthError("Too many attempts. Try again in N minutes.")`. A
+  successful sign-in clears the email's counter. `TRUST_PROXY` decides which `x-forwarded-for` entry is the IP.
+- `createRateLimiter` and `isUniqueViolation` (`/db`).
+- Index on `mlwebkit__verifications.identifier`.
+
+### Changed
+
+- SQLite: local `file:` databases use WAL mode and a 5-second busy timeout.
+- Local storage serves files with `Content-Security-Policy: default-src 'none'; sandbox` and as attachments
+  unless they are PNG, JPEG, WebP or GIF images.
+- Clerk links a Clerk user to an existing local user by email only when Clerk has verified that address;
+  otherwise the Clerk user gets a separate local user.
+
 ## 0.2.0
 
 ### Added

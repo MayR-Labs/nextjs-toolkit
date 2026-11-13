@@ -7,6 +7,7 @@ export {
   type SettingValue,
   settingEnvName,
 } from "./define";
+export { envExample } from "./env-example";
 export {
   type Resolved,
   type ResolveInput,
@@ -14,4 +15,3 @@ export {
   type SettingSource,
   type StoredValues,
 } from "./resolve";
-export { envExample } from "./env-example";

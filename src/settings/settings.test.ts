@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { defineSettings, envExample, parseEnvValue, resolveSetting, settingEnvName } from ".";
+import {
+  defineSettings,
+  envExample,
+  parseEnvValue,
+  resolveSetting,
+  settingEnvName,
+} from ".";
 
 const registry = defineSettings({
   "billing.timing": {
@@ -23,7 +29,9 @@ const timing = registry["billing.timing"];
 describe("settings", () => {
   it("derives env names", () => {
     expect(settingEnvName("billing.timing")).toBe("SETTING_BILLING_TIMING");
-    expect(settingEnvName("billing.timing", "ikeja")).toBe("SETTING_BILLING_TIMING__IKEJA");
+    expect(settingEnvName("billing.timing", "ikeja")).toBe(
+      "SETTING_BILLING_TIMING__IKEJA",
+    );
   });
 
   it("parses env strings, JSON and lists", () => {
@@ -34,46 +42,84 @@ describe("settings", () => {
   });
 
   it("single-tenant: env wins, branch env first, then DB, then default", () => {
-    const base = { key: "billing.timing", definition: timing, mode: "single" as const };
+    const base = {
+      key: "billing.timing",
+      definition: timing,
+      mode: "single" as const,
+    };
     expect(
-      resolveSetting({ ...base, env: { SETTING_BILLING_TIMING: "prepaid" }, stored: { tenant: "postpaid" } }),
+      resolveSetting({
+        ...base,
+        env: { SETTING_BILLING_TIMING: "prepaid" },
+        stored: { tenant: "postpaid" },
+      }),
     ).toEqual({ value: "prepaid", source: "env", readOnly: true });
     expect(
       resolveSetting({
         ...base,
         branch: "IKEJA",
-        env: { SETTING_BILLING_TIMING: "prepaid", SETTING_BILLING_TIMING__IKEJA: "postpaid" },
+        env: {
+          SETTING_BILLING_TIMING: "prepaid",
+          SETTING_BILLING_TIMING__IKEJA: "postpaid",
+        },
         stored: {},
       }).value,
     ).toBe("postpaid");
-    expect(resolveSetting({ ...base, env: {}, stored: { tenant: "postpaid" } }).source).toBe("tenant");
     expect(
-      resolveSetting({ ...base, env: {}, stored: { tenant: "postpaid" }, adminEditable: false }),
-    ).toEqual({ value: "by-payer", source: "default", readOnly: true });
-  });
-
-  it("multi-tenant: lock beats tenant, tenant beats platform default and env", () => {
-    const base = { key: "billing.timing", definition: timing, mode: "multi" as const };
+      resolveSetting({ ...base, env: {}, stored: { tenant: "postpaid" } })
+        .source,
+    ).toBe("tenant");
     expect(
       resolveSetting({
         ...base,
         env: {},
-        stored: { platform: { value: "prepaid", locked: true }, tenant: "postpaid" },
+        stored: { tenant: "postpaid" },
+        adminEditable: false,
+      }),
+    ).toEqual({ value: "by-payer", source: "default", readOnly: true });
+  });
+
+  it("multi-tenant: lock beats tenant, tenant beats platform default and env", () => {
+    const base = {
+      key: "billing.timing",
+      definition: timing,
+      mode: "multi" as const,
+    };
+    expect(
+      resolveSetting({
+        ...base,
+        env: {},
+        stored: {
+          platform: { value: "prepaid", locked: true },
+          tenant: "postpaid",
+        },
       }).source,
     ).toBe("platform-lock");
     expect(
-      resolveSetting({ ...base, env: { SETTING_BILLING_TIMING: "prepaid" }, stored: { tenant: "postpaid" } })
-        .value,
+      resolveSetting({
+        ...base,
+        env: { SETTING_BILLING_TIMING: "prepaid" },
+        stored: { tenant: "postpaid" },
+      }).value,
     ).toBe("postpaid");
     expect(
-      resolveSetting({ ...base, env: { SETTING_BILLING_TIMING: "prepaid" }, stored: {} }).source,
+      resolveSetting({
+        ...base,
+        env: { SETTING_BILLING_TIMING: "prepaid" },
+        stored: {},
+      }).source,
     ).toBe("platform-default");
   });
 
   it("ignores stored values that no longer validate", () => {
     expect(
-      resolveSetting({ key: "billing.timing", definition: timing, mode: "multi", env: {}, stored: { tenant: "bogus" } })
-        .value,
+      resolveSetting({
+        key: "billing.timing",
+        definition: timing,
+        mode: "multi",
+        env: {},
+        stored: { tenant: "bogus" },
+      }).value,
     ).toBe("by-payer");
   });
 

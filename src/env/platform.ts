@@ -6,6 +6,7 @@ export function platformUrl(): string | undefined {
   if (env.VERCEL_PROJECT_PRODUCTION_URL)
     return `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`;
   if (env.VERCEL_URL) return `https://${env.VERCEL_URL}`;
-  if (env.HEROKU_APP_NAME) return `https://${env.HEROKU_APP_NAME}.herokuapp.com`;
+  if (env.HEROKU_APP_NAME)
+    return `https://${env.HEROKU_APP_NAME}.herokuapp.com`;
   return undefined;
 }

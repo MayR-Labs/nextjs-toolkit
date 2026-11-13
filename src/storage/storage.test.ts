@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { checkUpload, createStorage, objectKey } from ".";
-import { localStorageDriver, serveLocalFile } from "./local";
+import { localFileHeaders, localStorageDriver, serveLocalFile } from "./local";
 
 describe("storage", () => {
   it("checks uploads", () => {
@@ -15,6 +15,24 @@ describe("storage", () => {
     expect(checkUpload({ size: 4096, type: "image/png" }, rules)).toMatch(
       /larger/,
     );
+  });
+
+  it("serves only raster images inline", () => {
+    expect(
+      localFileHeaders("image/png", "public")["Content-Disposition"],
+    ).toBeUndefined();
+    expect(
+      localFileHeaders("image/jpeg", "private")["Content-Disposition"],
+    ).toBeUndefined();
+    expect(
+      localFileHeaders("image/svg+xml", "public")["Content-Disposition"],
+    ).toBe("attachment");
+    expect(
+      localFileHeaders("application/pdf", "private")["Content-Disposition"],
+    ).toBe("attachment");
+    expect(
+      localFileHeaders("text/html", "public")["X-Content-Type-Options"],
+    ).toBe("nosniff");
   });
 
   it("builds safe keys", () => {
@@ -52,6 +70,10 @@ describe("storage", () => {
     );
     expect(ok.status).toBe(200);
     expect(await ok.text()).toBe("hi");
+    expect(ok.headers.get("Content-Disposition")).toBe("attachment");
+    expect(ok.headers.get("Content-Security-Policy")).toBe(
+      "default-src 'none'; sandbox",
+    );
     const denied = await serveLocalFile(
       config,
       "t/a.txt",

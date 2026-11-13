@@ -89,14 +89,32 @@ export function webkitTables(t: Kit) {
     (table) => [t.index("mlwebkit__accounts_user").on(table.userId)],
   );
 
-  const verifications = t.table("mlwebkit__verifications", {
-    id: t.id(),
-    identifier: t.text("identifier").notNull(),
-    value: t.longText("value").notNull(),
-    expiresAt: t.timestamp("expires_at").notNull(),
-    createdAt: t.createdAt(),
-    updatedAt: t.updatedAt(),
-  });
+  const verifications = t.table(
+    "mlwebkit__verifications",
+    {
+      id: t.id(),
+      identifier: t.text("identifier").notNull(),
+      value: t.longText("value").notNull(),
+      expiresAt: t.timestamp("expires_at").notNull(),
+      createdAt: t.createdAt(),
+      updatedAt: t.updatedAt(),
+    },
+    (table) => [
+      t.index("mlwebkit__verifications_identifier").on(table.identifier),
+    ],
+  );
+
+  /** Fixed-window attempt counters (sign-in, password reset): see `createRateLimiter`. */
+  const rateLimits = t.table(
+    "mlwebkit__rate_limits",
+    {
+      id: t.id(),
+      key: t.text("key").notNull(),
+      count: t.int("count").notNull().default(0),
+      windowStart: t.timestamp("window_start").notNull(),
+    },
+    (table) => [t.uniqueIndex("mlwebkit__rate_limits_key").on(table.key)],
+  );
 
   const settings = t.table(
     "mlwebkit__settings",
@@ -162,6 +180,7 @@ export function webkitTables(t: Kit) {
     webkitSettings: settings,
     webkitOutbox: outbox,
     webkitPaymentEvents: paymentEvents,
+    webkitRateLimits: rateLimits,
   };
 }
 

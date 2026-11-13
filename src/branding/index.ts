@@ -26,7 +26,10 @@ export interface Branding {
 
 const HEX = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
 
-export function normaliseHex(value: string | undefined, fallback: string): string {
+export function normaliseHex(
+  value: string | undefined,
+  fallback: string,
+): string {
   if (!value || !HEX.test(value.trim())) return fallback;
   let hex = value.trim().replace("#", "");
   if (hex.length === 3) hex = [...hex].map((c) => c + c).join("");
@@ -42,21 +45,29 @@ function luminance(hex: string): number {
 }
 
 export function contrastRatio(a: string, b: string): number {
-  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [
+    number,
+    number,
+  ];
   return (hi + 0.05) / (lo + 0.05);
 }
 
 /** Black or white, whichever reads better on `background`. */
 export function readableText(background: string): "#ffffff" | "#0f172a" {
-  return contrastRatio(background, "#ffffff") >= contrastRatio(background, "#0f172a")
+  return contrastRatio(background, "#ffffff") >=
+    contrastRatio(background, "#0f172a")
     ? "#ffffff"
     : "#0f172a";
 }
 
-const pick = (env: Record<string, string | undefined>, key: string) => env[key] || undefined;
+const pick = (env: Record<string, string | undefined>, key: string) =>
+  env[key] || undefined;
 
 /** Branding from BRAND_* / ORG_* env, over the app's defaults. */
-export function brandingFromEnv(env: Record<string, string | undefined>, defaults: Branding): Branding {
+export function brandingFromEnv(
+  env: Record<string, string | undefined>,
+  defaults: Branding,
+): Branding {
   return mergeBranding(defaults, {
     name: pick(env, "BRAND_NAME"),
     shortName: pick(env, "BRAND_SHORT_NAME"),
@@ -71,7 +82,9 @@ export function brandingFromEnv(env: Record<string, string | undefined>, default
     accentColor: pick(env, "BRAND_ACCENT_COLOR"),
     sidebarColor: pick(env, "BRAND_SIDEBAR_COLOR"),
     font: pick(env, "BRAND_FONT"),
-    poweredBy: env.BRAND_POWERED_BY ? env.BRAND_POWERED_BY !== "false" : undefined,
+    poweredBy: env.BRAND_POWERED_BY
+      ? env.BRAND_POWERED_BY !== "false"
+      : undefined,
     org: {
       name: pick(env, "ORG_NAME"),
       legalName: pick(env, "ORG_LEGAL_NAME"),
@@ -84,17 +97,29 @@ export function brandingFromEnv(env: Record<string, string | undefined>, default
   });
 }
 
-type BrandingInput = Partial<Omit<Branding, "org">> & { org?: Partial<Branding["org"]> };
+type BrandingInput = Partial<Omit<Branding, "org">> & {
+  org?: Partial<Branding["org"]>;
+};
 
 /** Fills unset fields from `base`. Used for env and for tenant settings alike. */
 export function mergeBranding(base: Branding, over: BrandingInput): Branding {
   const clean = <T extends object>(o: T) =>
-    Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== "")) as Partial<T>;
-  const merged: Branding = { ...base, ...clean(over), org: { ...base.org, ...clean(over.org ?? {}) } };
+    Object.fromEntries(
+      Object.entries(o).filter(([, v]) => v !== undefined && v !== ""),
+    ) as Partial<T>;
+  const merged: Branding = {
+    ...base,
+    ...clean(over),
+    org: { ...base.org, ...clean(over.org ?? {}) },
+  };
   merged.shortName = over.shortName || (over.name ? over.name : base.shortName);
   merged.primaryColor = normaliseHex(merged.primaryColor, base.primaryColor);
   merged.accentColor = normaliseHex(merged.accentColor, base.accentColor);
-  if (merged.sidebarColor) merged.sidebarColor = normaliseHex(merged.sidebarColor, merged.primaryColor);
+  if (merged.sidebarColor)
+    merged.sidebarColor = normaliseHex(
+      merged.sidebarColor,
+      merged.primaryColor,
+    );
   return merged;
 }
 

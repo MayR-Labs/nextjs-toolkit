@@ -6,15 +6,18 @@ export interface FeatureDefinition {
 
 export type FeatureRegistry = Record<string, FeatureDefinition>;
 
-export function defineFeatures<F extends FeatureRegistry, E extends Record<string, Array<keyof F & string>>>(
-  features: F,
-  editions: E,
-) {
+export function defineFeatures<
+  F extends FeatureRegistry,
+  E extends Record<string, Array<keyof F & string>>,
+>(features: F, editions: E) {
   return { features, editions };
 }
 
 /** Parses "+a,-b,c" into additions and removals (bare names are additions). */
-export function parseOverrides(spec: string | undefined): { add: string[]; remove: string[] } {
+export function parseOverrides(spec: string | undefined): {
+  add: string[];
+  remove: string[];
+} {
   const add: string[] = [];
   const remove: string[] = [];
   for (const raw of (spec ?? "").split(",")) {
@@ -37,7 +40,9 @@ export function resolveFeatures(
 ): Set<string> {
   const { add, remove } = parseOverrides(overrides);
   const removed = new Set(remove);
-  const enabled = new Set([...preset, ...add].filter((f) => f in registry && !removed.has(f)));
+  const enabled = new Set(
+    [...preset, ...add].filter((f) => f in registry && !removed.has(f)),
+  );
 
   // Removed features only grow and are never re-added, so this always terminates.
   let changed = true;
